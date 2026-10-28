@@ -20,6 +20,16 @@ Télécharge l'installateur dans les *Releases*. Si Windows affiche « Windows a
 
 Configuration : Windows 10 ou 11 en 64 bits, 16 Go de mémoire conseillés, une carte graphique compatible Vulkan (une puce Intel ou AMD récente suffit, en plus lent).
 
+## Code signing policy
+
+Signature de code gratuite demandée à [SignPath.io](https://about.signpath.io/), certificat de [SignPath Foundation](https://signpath.org/) (en attente).
+
+- Auteurs et relecteurs : [Béryl](https://github.com/ElectroTale) (comptes ElectroTale et Nojf-design). Le code est écrit par Claude (Anthropic) à la demande de Béryl, et chaque modification passe par ce dépôt.
+- Approbation des signatures : [Béryl](https://github.com/ElectroTale).
+- Les installateurs sont construits automatiquement par GitHub Actions à partir de ce dépôt (`.github/workflows/build.yml`).
+
+**Vie privée.** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. ÉlectroTale ne se connecte à internet que lorsque tu demandes de télécharger un modèle : il le récupère alors sur Hugging Face, soumis à [sa politique de confidentialité](https://huggingface.co/privacy). Tes histoires restent sur ton PC.
+
 ## Construire depuis le code
 
 Sous Linux, avec Node.js 20 et `nsis` :
