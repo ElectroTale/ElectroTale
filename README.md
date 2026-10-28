@@ -22,7 +22,7 @@ Configuration : Windows 10 ou 11 en 64 bits, 16 Go de mémoire conseillés, une 
 
 ## Code signing policy
 
-Signature de code gratuite demandée à [SignPath.io](https://about.signpath.io/), certificat de [SignPath Foundation](https://signpath.org/) (en attente).
+Signature de code gratuite prévue plus tard avec [SignPath.io](https://about.signpath.io/) et [SignPath Foundation](https://signpath.org/). Pour l’instant, l’installateur n’est pas signé.
 
 - Auteurs et relecteurs : [Béryl](https://github.com/ElectroTale) (comptes ElectroTale et Nojf-design). Le code est écrit par Claude (Anthropic) à la demande de Béryl, et chaque modification passe par ce dépôt.
 - Approbation des signatures : [Béryl](https://github.com/ElectroTale).
