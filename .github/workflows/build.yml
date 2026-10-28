@@ -4,6 +4,8 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,3 +22,13 @@ jobs:
         with:
           name: ElectroTale-Installation
           path: ElectroTale-Installation-*.exe
+      - name: Publier la version sur GitHub
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ÉlectroTale ${{ github.ref_name }} bêta
+          prerelease: true
+          files: ElectroTale-Installation-*.exe
+          body: |
+            Version bêta d'ÉlectroTale, réservée aux 18 ans et plus.
+            Télécharge ElectroTale-Installation.exe ci-dessous. Si Windows affiche « Windows a protégé votre ordinateur », clique sur « Informations complémentaires » puis « Exécuter quand même ».
