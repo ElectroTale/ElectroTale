@@ -208,9 +208,14 @@ async function startIntegre(c) {
   setStatus("starting", "Chargement du modèle " + path.basename(c.modelPath) + "…");
   // palier « mode prudent » déjà trouvé pour ce modèle et ce réglage de carte (voir le contrôle de départ dans worker.js)
   const safe = textSafeOf(c);
-  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu: c.gpu, layers: c.layers, flash: c.flash, safe }); }
+  const verified = !!(c.textSafe && c.textSafe.key === textSafeKey(c) && c.textSafe.ok);
+  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu: c.gpu, layers: c.layers, flash: c.flash, safe, verified }); }
   catch (e) { proc = null; setStatus("error", "Impossible de lancer le moteur intégré : " + e.message); return { ok: false }; }
   wire(proc, c);
+  // le long contrôle a réussi : on le retient pour ne plus le refaire avec ce modèle et ce réglage
+  if (!verified) proc.stdout.on("data", d => {
+    if (/contrôle complet réussi/.test(d.toString())) { const c2 = loadCfg(); c2.textSafe = { key: textSafeKey(c), level: safe, ok: true }; saveCfg(c2); }
+  });
   return { ok: true };
 }
 const textSafeKey = c => c.modelPath + "|" + c.gpu;
@@ -219,7 +224,7 @@ const textSafeOf = c => c.textSafe && c.textSafe.key === textSafeKey(c) ? Math.m
 function textGarbled(c, code) {
   const level = textSafeOf(c);
   if (code === 4 && level < 3 && c.gpu !== "cpu") {
-    const next = level + 1, c2 = { ...loadCfg(), textSafe: { key: textSafeKey(c), level: next } };
+    const next = level + 1, c2 = { ...loadCfg(), textSafe: { key: textSafeKey(c), level: next, ok: false } };
     saveCfg(c2);
     log("> le texte sort brouillé avec la carte graphique : nouvel essai en mode prudent " + next + (next >= 3 ? " (processeur seul, plus lent)" : ""));
     setStatus("starting", next >= 3 ? "La carte graphique calcule faux : passage au processeur…" : "Texte brouillé : nouvel essai en mode prudent " + next + "…");

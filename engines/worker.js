@@ -144,7 +144,10 @@ async function runText() {
 
   function garbled(t) {
     const bad = (t.match(/Â|Ã|\uFFFD|&#/g) || []).length + (t.match(/\b(\w+)(\s+\1\b){2,}/g) || []).length * 2;
-    return bad >= 4 && bad * 40 > t.length;
+    if (bad >= 4 && bad * 40 > t.length) return true;
+    // un vrai récit est fait de lettres à plus de 80 % ; le charabia de chiffres et de ponctuation, à moins de 50 %
+    const ns = t.replace(/\s/g, "");
+    return ns.length >= 30 && (ns.match(/\p{L}/gu) || []).length < ns.length * 0.6;
   }
 
   async function sanity(comp) {
@@ -161,7 +164,21 @@ async function runText() {
     const t = await run(long.trim());
     got.push(t.slice(0, 30));
     longOk = /\b301\b/.test(t);
-    return { ok: ok >= 2 && longOk, got };
+    if (!(ok >= 2 && longOk)) return { ok: false, got };
+    // une seule fois par modèle et par réglage : un texte aussi long qu'une vraie partie (~2 300 jetons).
+    // Sur certaines cartes, c'est seulement là que les calculs déraillent ; c'est lent, d'où le « une seule fois ».
+    if (!cfg.verified) {
+      const room = Math.min(2400, (comp === asideCompletion ? asideCtx : nctx) - 64);
+      let n = 300, toks = model.tokenize(long.trim());
+      while (toks.length < room - 40) { for (let k = 0; k < 50; k++) long += (++n) + ", "; toks = model.tokenize(long.trim()); }
+      while (toks.length > room) { long = long.replace(/\d+, $/, ""); n--; toks = model.tokenize(long.trim()); }
+      log("contrôle sur un long texte (" + toks.length + " jetons), une seule fois…");
+      const t2 = await run(long.trim());
+      got.push(t2.slice(0, 30));
+      if (!new RegExp("\\b" + (n + 1) + "\\b").test(t2)) return { ok: false, got };
+      log("contrôle complet réussi");
+    }
+    return { ok: true, got };
   }
 
   function applyTemplate(messages) {
