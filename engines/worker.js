@@ -86,8 +86,14 @@ async function runText() {
   });
 
   try {
+    // mode prudent de la carte graphique : certains pilotes (surtout Intel intégré, Vulkan) calculent faux
+    // et le modèle écrit n'importe quoi. Chaque palier coupe des accélérations ; le dernier passe au processeur.
+    const safe = +cfg.safe || 0;
+    if (safe >= 1) ["COOPMAT", "COOPMAT2", "INTEGER_DOT_PRODUCT", "BFLOAT16", "FUSION"].forEach(k => process.env["GGML_VK_DISABLE_" + k] = "1");
+    if (safe >= 2) ["F16", "MMVQ", "DOT2"].forEach(k => process.env["GGML_VK_DISABLE_" + k] = "1");
+    if (safe) log("mode prudent " + safe + (safe >= 3 ? " : processeur seul" : " : accélérations de la carte graphique coupées"));
     L = await import("node-llama-cpp");
-    const useGpu = cfg.gpu !== "cpu";
+    const useGpu = cfg.gpu !== "cpu" && safe < 3;
     let llama;
     try { llama = await L.getLlama({ gpu: useGpu ? "auto" : false, build: "never", logLevel: "warn", progressLogs: false }); }
     catch (e) { fail("GPU indisponible, passage au processeur :", e.message); llama = await L.getLlama({ gpu: false, build: "never", logLevel: "warn", progressLogs: false }); }
@@ -104,7 +110,7 @@ async function runText() {
     const threads = Math.max(1, Math.min(llama.cpuMathCores || 4, os.availableParallelism ? os.availableParallelism() : os.cpus().length));
     const want = Math.max(512, Math.min(+cfg.ctx || 8192, model.trainContextSize || 1e9));
     for (let size = want; ; size = Math.floor(size / 2)) {
-      try { ctx = await model.createContext({ contextSize: size, flashAttention: !!cfg.flash, sequences: 1, threads }); break; }
+      try { ctx = await model.createContext({ contextSize: size, flashAttention: !!cfg.flash && !safe, sequences: 1, threads }); break; }
       catch (e) {
         if (size <= 1024) throw e;
         fail("contexte de " + size + " trop grand pour la mémoire, essai avec " + Math.floor(size / 2));
@@ -114,16 +120,37 @@ async function runText() {
     seq = ctx.getSequence();
     completion = new L.LlamaCompletion({ contextSequence: seq });
     try {
-      const a = await model.createContext({ contextSize: Math.min(3072, nctx), flashAttention: !!cfg.flash, sequences: 1, threads });
+      const a = await model.createContext({ contextSize: Math.min(3072, nctx), flashAttention: !!cfg.flash && !safe, sequences: 1, threads });
       asideSeq = a.getSequence(); asideCompletion = new L.LlamaCompletion({ contextSequence: asideSeq }); asideCtx = a.contextSize;
     } catch (e) { fail("pas de mémoire pour les tâches annexes, elles partageront celle de l'histoire"); }
     try { wrapper = L.resolveChatWrapper(model); } catch (e) { wrapper = null; }
+    // petit contrôle avant de raconter : si le modèle ne sait même plus compter, les calculs sont faux
+    const check = await sanity(asideCompletion || completion);
+    if (!check.ok) {
+      loadErr = "texte incohérent";
+      fail("texte incohérent au contrôle de départ (" + check.got.map(g => JSON.stringify(g)).join(", ") + ")");
+      // 4 : la carte graphique calcule faux, on peut réessayer plus prudemment ; 5 : même sans elle, le fichier est en cause
+      setTimeout(() => process.exit(llama.gpu && model.gpuLayers > 0 ? 4 : 5), 300);
+      return;
+    }
     log("prêt — contexte " + nctx + " jetons, " + threads + " cœurs, format " + (wrapper ? wrapper.wrapperName : "inconnu"));
     ready = true;
   } catch (e) {
     loadErr = String(e && e.message || e);
     fail("impossible de charger le modèle :", loadErr);
     setTimeout(() => process.exit(2), 500);
+  }
+
+  async function sanity(comp) {
+    const tests = [["1, 2, 3, 4, 5, 6, 7, 8, 9, 10,", /\b11\b/], ["a, b, c, d, e, f, g, h,", /^\W*i\b/i], ["lundi, mardi, mercredi, jeudi,", /vendredi/i]];
+    const got = []; let ok = 0;
+    for (const [p, re] of tests) {
+      let t = "";
+      try { t = await comp.generateCompletion(model.tokenize(p), { maxTokens: 6, temperature: 0 }); } catch (e) { t = "(erreur " + e.message + ")"; }
+      got.push(t.slice(0, 30));
+      if (re.test(t)) ok++;
+    }
+    return { ok: ok >= 2, got };
   }
 
   function applyTemplate(messages) {

@@ -206,10 +206,28 @@ async function startIntegre(c) {
   logTail = [];
   log("> moteur intégré : " + path.basename(c.modelPath) + " (contexte " + c.ctx + ")");
   setStatus("starting", "Chargement du modèle " + path.basename(c.modelPath) + "…");
-  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu: c.gpu, layers: c.layers, flash: c.flash }); }
+  // palier « mode prudent » déjà trouvé pour ce modèle et ce réglage de carte (voir le contrôle de départ dans worker.js)
+  const safe = textSafeOf(c);
+  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu: c.gpu, layers: c.layers, flash: c.flash, safe }); }
   catch (e) { proc = null; setStatus("error", "Impossible de lancer le moteur intégré : " + e.message); return { ok: false }; }
   wire(proc, c);
   return { ok: true };
+}
+const textSafeKey = c => c.modelPath + "|" + c.gpu;
+const textSafeOf = c => c.textSafe && c.textSafe.key === textSafeKey(c) ? Math.max(0, Math.min(3, +c.textSafe.level || 0)) : 0;
+// le modèle a écrit n'importe quoi au contrôle de départ : on relance avec un palier plus prudent
+function textGarbled(c, code) {
+  const level = textSafeOf(c);
+  if (code === 4 && level < 3 && c.gpu !== "cpu") {
+    const next = level + 1, c2 = { ...loadCfg(), textSafe: { key: textSafeKey(c), level: next } };
+    saveCfg(c2);
+    log("> le texte sort brouillé avec la carte graphique : nouvel essai en mode prudent " + next + (next >= 3 ? " (processeur seul, plus lent)" : ""));
+    setStatus("starting", next >= 3 ? "La carte graphique calcule faux : passage au processeur…" : "Texte brouillé : nouvel essai en mode prudent " + next + "…");
+    startIntegre(c2);
+    return true;
+  }
+  setStatus("error", "Le modèle écrit un texte incohérent même sans la carte graphique : le fichier .gguf est sans doute abîmé ou incomplet. Retélécharge-le ou choisis-en un autre.");
+  return true;
 }
 function wire(me, c) {
   {
@@ -219,6 +237,7 @@ function wire(me, c) {
   me.on("exit", code => {
     if (proc !== me) return;
     proc = null; clearInterval(pollTimer);
+    if ((code === 4 || code === 5) && c.engine === "integre" && status !== "stopped" && textGarbled(c, code)) return;
     const why = (logTail.slice().reverse().find(l => /impossible|error|erreur|failed/i.test(l)) || "").replace(/^\[text\]\s*/, "");
     if (status !== "stopped") setStatus(code === 0 ? "stopped" : "error",
       code === 0 ? "Moteur arrêté." : (why ? why + " — " : "Le moteur s'est arrêté (code " + code + "). ") + "Regarde le journal : souvent pas assez de mémoire → baisse les couches GPU ou le contexte, ou prends un modèle plus petit.");
