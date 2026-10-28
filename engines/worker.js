@@ -57,7 +57,7 @@ const queued = fn => { const p = chain.then(fn, fn); chain = p.catch(() => {}); 
 async function runText() {
   let ready = false, loadErr = null, model = null, ctx = null, seq = null, completion = null, nctx = 0, L = null, wrapper = null;
   // petite mémoire à part pour les tâches annexes (titres, résumés, mots-clés d'images) : la mémoire de l'histoire reste intacte
-  let asideCompletion = null, asideSeq = null, asideCtx = 0;
+  let asideCompletion = null, asideSeq = null, asideCtx = 0, onGpu = false;
   serve(cfg.port, async (req, res) => {
     const u = req.url.split("?")[0];
     if (u === "/health") return ready ? json(res, 200, { status: "ok" }) : json(res, 503, { status: loadErr ? "error" : "loading model", error: loadErr });
@@ -106,6 +106,7 @@ async function runText() {
       onLoadProgress: p => { const pc = Math.floor(p * 10) * 10; if (pc !== last) { last = pc; log("chargement " + pc + " %"); } }
     });
     log("couches sur la carte graphique : " + model.gpuLayers);
+    onGpu = !!llama.gpu && model.gpuLayers > 0;
     const os = require("os");
     const threads = Math.max(1, Math.min(llama.cpuMathCores || 4, os.availableParallelism ? os.availableParallelism() : os.cpus().length));
     const want = Math.max(512, Math.min(+cfg.ctx || 8192, model.trainContextSize || 1e9));
@@ -130,7 +131,7 @@ async function runText() {
       loadErr = "texte incohérent";
       fail("texte incohérent au contrôle de départ (" + check.got.map(g => JSON.stringify(g)).join(", ") + ")");
       // 4 : la carte graphique calcule faux, on peut réessayer plus prudemment ; 5 : même sans elle, le fichier est en cause
-      setTimeout(() => process.exit(llama.gpu && model.gpuLayers > 0 ? 4 : 5), 300);
+      setTimeout(() => process.exit(onGpu ? 4 : 5), 300);
       return;
     }
     log("prêt — contexte " + nctx + " jetons, " + threads + " cœurs, format " + (wrapper ? wrapper.wrapperName : "inconnu"));
@@ -141,16 +142,26 @@ async function runText() {
     setTimeout(() => process.exit(2), 500);
   }
 
+  function garbled(t) {
+    const bad = (t.match(/Â|Ã|\uFFFD|&#/g) || []).length + (t.match(/\b(\w+)(\s+\1\b){2,}/g) || []).length * 2;
+    return bad >= 4 && bad * 40 > t.length;
+  }
+
   async function sanity(comp) {
+    // les phrases courtes et les longs textes ne passent pas par les mêmes calculs sur la carte : on teste les deux
+    let long = ""; for (let i = 1; i <= 300; i++) long += i + ", ";
     const tests = [["1, 2, 3, 4, 5, 6, 7, 8, 9, 10,", /\b11\b/], ["a, b, c, d, e, f, g, h,", /^\W*i\b/i], ["lundi, mardi, mercredi, jeudi,", /vendredi/i]];
-    const got = []; let ok = 0;
+    const got = []; let ok = 0, longOk = false;
+    const run = async p => { try { return await comp.generateCompletion(model.tokenize(p), { maxTokens: 6, temperature: 0 }); } catch (e) { return "(erreur " + e.message + ")"; } };
     for (const [p, re] of tests) {
-      let t = "";
-      try { t = await comp.generateCompletion(model.tokenize(p), { maxTokens: 6, temperature: 0 }); } catch (e) { t = "(erreur " + e.message + ")"; }
+      const t = await run(p);
       got.push(t.slice(0, 30));
       if (re.test(t)) ok++;
     }
-    return { ok: ok >= 2, got };
+    const t = await run(long.trim());
+    got.push(t.slice(0, 30));
+    longOk = /\b301\b/.test(t);
+    return { ok: ok >= 2 && longOk, got };
   }
 
   function applyTemplate(messages) {
@@ -222,6 +233,12 @@ async function runText() {
       (sent.length - reused) + " jetons relus sur " + sent.length + ", " + (secs > 0 ? (nOut / secs).toFixed(1) : "?") + " jetons/s");
     if (stream) { res.write("data: " + JSON.stringify({ content: "", stop: true }) + "\n\n"); res.end(); }
     else json(res, 200, { content: text, stop: true });
+    // réponse brouillée en pleine partie (morceaux d'octets « Â », « &# », caractères illisibles) :
+    // la carte graphique calcule faux sur ce long texte, on redémarre en mode plus prudent
+    if (onGpu && garbled(text)) {
+      fail("texte incohérent pendant la partie : " + JSON.stringify(text.slice(0, 80)));
+      setTimeout(() => process.exit(4), 300);
+    }
   }
 }
 
