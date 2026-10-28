@@ -1,4 +1,4 @@
-# Construit l'installateur Windows à chaque version publiée (tag v*), ou à la demande.
+# Construit l'installateur Windows à la demande (ou sur un tag v*) et le publie comme version GitHub.
 name: Installateur Windows
 on:
   push:
@@ -17,16 +17,19 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y nsis
       - run: npm install --no-audit --no-fund
       - run: ./build-win.sh
-      - run: mv ElectroTale-Installation.exe "ElectroTale-Installation-${GITHUB_REF_NAME#v}.exe"
+      - name: Lire le numéro de version
+        run: echo "VERSION=$(node -p "require('./package.json').version")" >> "$GITHUB_ENV"
+      - run: mv ElectroTale-Installation.exe "ElectroTale-Installation-$VERSION.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: ElectroTale-Installation
           path: ElectroTale-Installation-*.exe
       - name: Publier la version sur GitHub
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          name: ÉlectroTale ${{ github.ref_name }} bêta
+          tag_name: v${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
+          name: ÉlectroTale ${{ env.VERSION }} bêta
           prerelease: true
           files: ElectroTale-Installation-*.exe
           body: |
