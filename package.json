@@ -1,0 +1,67 @@
+{
+  "name": "electrotale",
+  "version": "1.17.1",
+  "description": "Aventures textuelles locales avec l IA, moteur intégré",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [],
+  "author": "Béryl",
+  "license": "GPL-3.0-or-later",
+  "devDependencies": {
+    "@electron/packager": "^18.4.4",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8",
+    "pe-library": "^1.0.1",
+    "resedit": "^2.0.3"
+  },
+  "productName": "ElectroTale",
+  "build": {
+    "appId": "ch.beryl.electrotale",
+    "productName": "ElectroTale",
+    "copyright": "Béryl",
+    "directories": {
+      "output": "dist-installer"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "contenu.js",
+      "app/**/*",
+      "package.json"
+    ],
+    "afterPack": "./afterpack.js",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ElectroTale",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
+      "installerHeaderIcon": "icon.ico",
+      "artifactName": "ElectroTale-Installation-${version}.exe",
+      "language": "1036",
+      "deleteAppDataOnUninstall": false
+    }
+  },
+  "dependencies": {
+    "node-llama-cpp": "3.22.2",
+    "sherpa-onnx-node": "1.13.8",
+    "stable-diffusion-cpp-node-api": "0.15.0"
+  }
+}

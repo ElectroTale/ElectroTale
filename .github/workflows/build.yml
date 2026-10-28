@@ -1,0 +1,22 @@
+# Construit l'installateur Windows à chaque version publiée (tag v*), ou à la demande.
+name: Installateur Windows
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: sudo apt-get update && sudo apt-get install -y nsis
+      - run: npm install --no-audit --no-fund
+      - run: ./build-win.sh
+      - run: mv ElectroTale-Installation.exe "ElectroTale-Installation-${GITHUB_REF_NAME#v}.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ElectroTale-Installation
+          path: ElectroTale-Installation-*.exe
