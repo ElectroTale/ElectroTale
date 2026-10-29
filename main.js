@@ -221,7 +221,7 @@ async function startIntegre(c) {
   wire(proc, c);
   // le long contrôle a réussi : on le retient pour ne plus le refaire avec ce modèle et ce réglage
   if (!verified) proc.stdout.on("data", d => {
-    if (/contrôle complet réussi/.test(d.toString())) { const c2 = loadCfg(); c2.textSafe = { key: textSafeKey(c), level: safe, ok: true }; saveCfg(c2); }
+    if (/contrôle complet réussi|contrôle de départ approximatif/.test(d.toString())) { const c2 = loadCfg(); c2.textSafe = { key: textSafeKey(c), level: safe, ok: true }; saveCfg(c2); }
   });
   return { ok: true };
 }

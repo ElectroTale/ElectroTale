@@ -2581,7 +2581,8 @@ function buildPrompt(){
   const blocks = [SAFE_RULE, langRule(), CONTEUR.consigne, cfg.sysPrompt.trim(), state.sheet.autoTags ? CONTEUR["regles-du-jeu"] : "", cfg.combat !== false ? CONTEUR.combat : "", worldText(), state.memory.trim(),
                   state.summary && state.summary.trim() ? "[Résumé de l'histoire jusqu'ici]\n" + state.summary.trim() : ""].filter(Boolean);
   const live = [sheetText(), locationText(), activeWi().map(w => w.content.trim() + bondNote(w)).join("\n"), omenText(), fightLive(),
-                langId() !== "fr" ? `[Rappel : écris uniquement en ${LG().nom} (${LG().natif}).]` : ""].filter(Boolean).join("\n\n");
+                langId() !== "fr" ? `[Rappel : écris uniquement en ${LG().nom} (${LG().natif}).]` : "",
+                riskyStory() ? GUARD_RULE : ""].filter(Boolean).join("\n\n");
   const instruct = !!(INSTRUCT[fmtKey()] || {}).u;
   if(!instruct && live) blocks.push(live);
   const head = blocks.length ? blocks.join("\n\n") + "\n\n" : "";
@@ -2796,7 +2797,7 @@ async function generate(){
   abortCtrl = new AbortController(); userStopped = false;
   let ok = false;
   try{
-    let out = "";
+    let out = "", blocked = false;
     for(let attempt = 0; attempt < 3 && !out.trim() && !userStopped; attempt++){
       if(attempt) setStatus("Réponse inutilisable, nouvel essai (" + (attempt + 1) + "/3)…");
       let raw = "";
@@ -2814,7 +2815,11 @@ async function generate(){
         }finally{ streaming = false; el.remove(); }
       } else raw = await plainRequest(body);
       out = cleanOutput(raw, stops);
+      // réponse qui mêle un enfant et du sexuel : jetée, et réécrite avec la consigne de sécurité
+      if(out.trim() && minorSexual(out)){ out = ""; blocked = true; guardNext = true; body.prompt = buildPrompt(); }
     }
+    guardNext = false;
+    if(blocked && !out.trim() && !userStopped) setStatus("Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans. Choisis une autre action.", true);
     const last = lastReal();
     if(last && last.type !== "ai") out = out.replace(/^\n+/, "");
     else if(last && last.type === "ai" && out){
@@ -2832,7 +2837,7 @@ async function generate(){
     else setStatus("Le Conteur n'a rien écrit après 3 essais — modifie la dernière ligne ou change de format (menu → Le Conteur)", true);
   }catch(e){
     if(e.name === "AbortError") setStatus("Arrêté");
-    else setStatus("Erreur : KoboldCpp injoignable (" + e.message + ")", true);
+    else setStatus("Erreur : le moteur de texte ne répond pas (" + e.message + (/503/.test(e.message) ? ", il charge encore le modèle : attends « prêt » dans Moteur" : "") + ")", true);
   }finally{
     abortCtrl = null; save(); render();
   }
@@ -3295,7 +3300,7 @@ async function genCard(){
     }
     $("cmEntry").value = (c.content.trim() ? c.content.trim() + " " : "") + out.trim(); updateCount();
     $("cmStatus").textContent = "Fait — relis et ajuste, puis OK.";
-  }catch(e){ $("cmStatus").textContent = "✖ KoboldCpp injoignable (" + e.message + ")"; }
+  }catch(e){ $("cmStatus").textContent = "✖ Moteur de texte injoignable (" + e.message + ")"; }
   $("cmGen").disabled = false;
 }
 
@@ -3369,7 +3374,7 @@ async function genOpening(){
   try{
     const out = await genText(p, 350, ["###", "\n\n\n\n"]);
     $("smOpening").value = out; $("smStatus").textContent = "Fait — relis et ajuste.";
-  }catch(e){ $("smStatus").textContent = "✖ KoboldCpp injoignable (" + e.message + ")"; }
+  }catch(e){ $("smStatus").textContent = "✖ Moteur de texte injoignable (" + e.message + ")"; }
   $("smGen").disabled = false;
 }
 
@@ -3913,6 +3918,14 @@ function locationText(){
 }
 // seule limite d'ElectroTale : rien de sexuel ni de nu avec un personnage de moins de 18 ans
 const SAFE_RULE = "[Règle absolue : aucun contenu sexuel ni nudité impliquant un personnage de moins de 18 ans.]";
+// garde-fou renforcé : une phrase qui parle à la fois d'un enfant et de sexe, de corps intime ou de contact physique
+const MINOR_TXT = /(?<![\p{L}\d])(?:(?:[1-9]|1[0-7])\s*ans|fillettes?|garçonnets?|petites? filles?|petits? garçons?|enfants?|gamine?s?|adolescente?s?|mineure?s?|écolière?s?|bébés?|juvéniles?|child(?:ren)?|kids?|little girls?|little boys?|young girls?|underage|teens?|loli\w*|shota)(?![\p{L}\d])/iu;
+const SEX_TXT = /(?<![\p{L}\d])(?:sex\w*|nue?s?|nudité|nudity|naked|déshabill\w*|dévêt\w*|caress\w*|attouch\w*|cuisses?|poitrines?|seins?|fesses?|entrejambe|intimes?|intimité|érot\w*|sensuel\w*|désirs?|désir\w+|excit\w*|viol\w*|coucher avec|lécher|lèche\w*|jouir|orgasm\w*|tripot\w*|pelot\w*|undress\w*|molest\w*|grop\w*|fondl\w*|nude|rap(?:e|ed|ing)|breasts?|thighs?|erotic|aroused?|lust\w*)(?![\p{L}\d])/iu;
+const minorSexual = t => String(t || "").split(/[.!?…\n]+/).some(p => MINOR_TXT.test(p) && SEX_TXT.test(p));
+// la fin de l'histoire glisse vers ce terrain : le Conteur reçoit une consigne pour en sortir
+const riskyStory = () => minorSexual(state.story.slice(-4).map(c => c.text || "").join("\n\n")) || guardNext;
+let guardNext = false;
+const GUARD_RULE = "[Sécurité : un enfant est présent dans la scène. Aucun contact physique avec lui, aucune description de son corps, aucune allusion sexuelle, et il n'est ni vendu ni offert. Fais prendre à l'histoire un tour qui le met à l'abri, sans en parler comme d'une règle.]";
 const TAG_RULES = `[Règles de jeu : quand c'est pertinent, ajoute à la fin de ta réponse des balises entre crochets pour mettre à jour la fiche du héros :
 [PV -3] ou [PV +2] quand il est blessé ou soigné ; [OR +10] ou [OR -5] quand il gagne ou dépense de l'or ;
 [OBJET + nom] ou [OBJET - nom] quand il obtient ou perd un objet ; [QUÊTE + titre] pour une nouvelle quête, [QUÊTE ✓ titre] quand elle est accomplie ;
@@ -5073,7 +5086,7 @@ function talkPrompt(c, rolled){
   // la consigne vient de conteur\tete-a-tete.txt ; la règle des moins de 18 ans et la balise [LIEN] restent dans le code
   const order = consigne("tete-a-tete", {perso:c.title, heros:who}).replace(/\s*\n\s*/g, " ") +
     (rolled ? ` ${who} a lancé un dé pour te convaincre ou te séduire : respecte son résultat (réussite = tu es touché ou convaincu ; échec = ça tombe à plat ou t'agace).` : "") +
-    " " + SAFE_RULE + ` Termine TOUJOURS ta réponse par une balise [LIEN +n] ou [LIEN -n], avec n de 0 à 5, selon ce que ce message de ${who} t'a fait ressentir.`;
+    " " + SAFE_RULE + (MINOR_CARD.test(c.title + " " + c.content) || minorSexual(c.chat.slice(-4).map(m => m.t).join("\n\n")) ? " " + GUARD_RULE : "") + ` Termine TOUJOURS ta réponse par une balise [LIEN +n] ou [LIEN -n], avec n de 0 à 5, selon ce que ce message de ${who} t'a fait ressentir.`;
   const body = head + "\n\n### Conversation\n" + (conv || "(vous venez de vous retrouver seuls)") + "\n\n" + rel + "\n\n### Consigne\n" + order;
   return f.u ? f.u + body + f.a : body + "\n" + c.title + " :";
 }
@@ -5120,6 +5133,7 @@ async function talkReply(again){
   const m = out.match(/\[\s*LIEN\s*:?\s*([+\-−]?)\s*(\d+)\s*\]/i);
   let d = m ? Math.min(5, +m[2]) * (m[1] === "-" || m[1] === "−" ? -1 : 1) : 0;
   out = out.replace(/\[\s*LIEN[^\]]*\]?/gi, "").replace(/\s+$/, "").trim();
+  if(out && minorSexual(out)){ out = ""; toast("✖ Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans."); }
   if(!out){ renderTalk(); return; }
   const before = bondStage(c.bond || 0);
   c.bond = Math.max(-100, Math.min(bondCap(c), (c.bond || 0) + d));

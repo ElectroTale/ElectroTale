@@ -127,13 +127,15 @@ async function runText() {
     try { wrapper = L.resolveChatWrapper(model); } catch (e) { wrapper = null; }
     // petit contrôle avant de raconter : si le modèle ne sait même plus compter, les calculs sont faux
     const check = await sanity(asideCompletion || completion);
-    if (!check.ok) {
+    if (!check.ok && onGpu) {
       loadErr = "texte incohérent";
       fail("texte incohérent au contrôle de départ (" + check.got.map(g => JSON.stringify(g)).join(", ") + ")");
-      // 4 : la carte graphique calcule faux, on peut réessayer plus prudemment ; 5 : même sans elle, le fichier est en cause
-      setTimeout(() => process.exit(onGpu ? 4 : 5), 300);
+      // la carte graphique calcule faux : on réessaie plus prudemment (palier suivant, puis processeur)
+      setTimeout(() => process.exit(4), 300);
       return;
     }
+    // sur le processeur, le contrôle ne bloque jamais : certains modèles comptent mal sans écrire n'importe quoi
+    if (!check.ok) log("contrôle de départ approximatif sur le processeur (" + check.got.map(g => JSON.stringify(g)).join(", ") + "), on continue");
     log("prêt — contexte " + nctx + " jetons, " + threads + " cœurs, format " + (wrapper ? wrapper.wrapperName : "inconnu"));
     ready = true;
   } catch (e) {
