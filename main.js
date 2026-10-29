@@ -209,7 +209,14 @@ async function startIntegre(c) {
   // palier « mode prudent » déjà trouvé pour ce modèle et ce réglage de carte (voir le contrôle de départ dans worker.js)
   const safe = textSafeOf(c);
   const verified = !!(c.textSafe && c.textSafe.key === textSafeKey(c) && c.textSafe.ok);
-  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu: c.gpu, layers: c.layers, flash: c.flash, safe, verified }); }
+  // carte Intel intégrée en « Auto » : le texte passe par le processeur. Avec Vulkan, ces cartes donnaient du charabia
+  // sur les longs textes, et elles n'allaient pas plus vite que le processeur. « Vulkan » dans Réglages force la carte.
+  let gpu = c.gpu;
+  if (gpu === "auto") {
+    const g = await detectGpu();
+    if (g.vendor === "intel" && !/arc\S*\s+(pro\s+)?[ab]\d/i.test(g.name)) { gpu = "cpu"; log("> carte Intel intégrée : le texte passe par le processeur"); }
+  }
+  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu, layers: c.layers, flash: c.flash, safe, verified, diagFile: path.join(userDir(), "diagnostic-texte.txt") }); }
   catch (e) { proc = null; setStatus("error", "Impossible de lancer le moteur intégré : " + e.message); return { ok: false }; }
   wire(proc, c);
   // le long contrôle a réussi : on le retient pour ne plus le refaire avec ce modèle et ce réglage

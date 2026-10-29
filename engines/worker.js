@@ -218,8 +218,12 @@ async function runText() {
     let bias;
     if (Array.isArray(b.logit_bias) && b.logit_bias.length) {
       bias = new L.TokenBias(model.tokenizer);
+      // seulement les mots qui tiennent en un seul jeton : pour un mot en plusieurs morceaux, la bibliothèque
+      // interdirait chaque morceau (« s », « oud », « ain »…), et le modèle ne pourrait plus écrire en français
       for (const [w, v] of b.logit_bias) if (typeof w === "string" && w) {
-        try { bias.set(w, v === false ? "never" : { logit: +v || 0 }); bias.set(" " + w, v === false ? "never" : { logit: +v || 0 }); } catch (e) {}
+        for (const s of [w, " " + w]) {
+          try { const t = model.tokenize(s); if (t.length === 1) bias.set(t[0], v === false ? "never" : { logit: +v || 0 }); } catch (e) {}
+        }
       }
     }
     const stops = (Array.isArray(b.stop) ? b.stop : []).filter(s => typeof s === "string" && s.length);
@@ -252,9 +256,17 @@ async function runText() {
     else json(res, 200, { content: text, stop: true });
     // réponse brouillée en pleine partie (morceaux d'octets « Â », « &# », caractères illisibles) :
     // la carte graphique calcule faux sur ce long texte, on redémarre en mode plus prudent
-    if (onGpu && garbled(text)) {
+    if (garbled(text)) {
       fail("texte incohérent pendant la partie : " + JSON.stringify(text.slice(0, 80)));
-      setTimeout(() => process.exit(4), 300);
+      // tout ce qu'il faut pour comprendre, dans un fichier à envoyer
+      try {
+        fs.writeFileSync(cfg.diagFile, ["ÉlectroTale — diagnostic du texte", new Date().toISOString(),
+          "modèle : " + path.basename(cfg.modelPath), "carte : " + (onGpu ? "oui (" + model.gpuLayers + " couches)" : "non, processeur") + ", mode prudent " + (+cfg.safe || 0),
+          "réglages : " + JSON.stringify({ temperature: b.temperature, top_k: b.top_k, top_p: b.top_p, min_p: b.min_p, repeat_penalty: b.repeat_penalty, repeat_last_n: b.repeat_last_n, interdits: (b.logit_bias || []).length }),
+          "jetons du texte envoyé : " + tokens.length, "", "===== RÉPONSE =====", text, "", "===== FIN DU TEXTE ENVOYÉ =====", String(b.prompt || "").slice(-6000)].join("\r\n"));
+        log("diagnostic enregistré dans " + cfg.diagFile);
+      } catch (e) {}
+      if (onGpu) setTimeout(() => process.exit(4), 300);
     }
   }
 }
