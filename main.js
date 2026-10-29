@@ -430,8 +430,6 @@ ipcMain.on("store:set", (e, k, v) => {
 });
 ipcMain.on("store:del", (e, k) => { try { fs.unlinkSync(keyFile(k)); } catch (err) {} e.returnValue = true; });
 ipcMain.handle("store:openDir", () => { fs.mkdirSync(dataDir(), { recursive: true }); shell.openPath(dataDir()); });
-// mode développeur : le dossier qui contient index.html (l'interface)
-ipcMain.handle("dev:openUiDir", () => { shell.openPath(path.join(__dirname, "app")); });
 
 /* ---------- téléchargement de llama.cpp ---------- */
 function unzip(zip, dir) {
@@ -1178,15 +1176,6 @@ function createWindow() {
   // la fenêtre ne quitte jamais la page d'ElectroTale
   win.webContents.on("will-navigate", (e, url) => { if (url !== require("url").pathToFileURL(page).toString()) { e.preventDefault(); safeExternal(url); } });
   win.webContents.on("will-attach-webview", e => e.preventDefault());
-  // mode développeur (Moteur → Mode développeur) : F12 = outils d'inspection, F5 ou Ctrl+R = recharger l'interface
-  win.webContents.on("before-input-event", (e, input) => {
-    if (input.type !== "keyDown") return;
-    const dev = input.key === "F12" || (input.control && input.shift && /^i$/i.test(input.key));
-    const reload = input.key === "F5" || (input.control && !input.shift && /^r$/i.test(input.key));
-    if (!(dev || reload) || !loadCfg().devMode) return;
-    e.preventDefault();
-    if (dev) win.webContents.toggleDevTools(); else win.webContents.reload();
-  });
   win.on("closed", () => { win = null; });
 }
 
