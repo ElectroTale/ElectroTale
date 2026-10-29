@@ -5,8 +5,9 @@ cd "$(dirname "$0")"
 ROOT=$PWD
 STAGE="${TMPDIR:-/tmp}/electrotale-build/app"
 VERSION=$(node -p 'require("./package.json").version')
+NUMVER=${VERSION%%-*}   # Windows veut des chiffres seulement : 1.17.4-T → 1.17.4
 rm -rf "$STAGE" && mkdir -p "$STAGE"
-cp -r main.js preload.js contenu.js app engines "$STAGE"/
+cp -r main.js preload.js contenu.js telephone.js app engines "$STAGE"/
 node -e '
 const p=require("./package.json");
 const o={name:p.name,productName:p.productName,version:p.version,description:p.description,main:p.main,author:p.author,license:p.license,dependencies:p.dependencies};
@@ -27,9 +28,9 @@ du -sh voix
 node "$ROOT/collect-licences.js" "$STAGE"
 cd "$ROOT"
 rm -rf dist/ElectroTale-win32-x64
-npx @electron/packager "$STAGE" ElectroTale --platform=win32 --arch=x64 --out=dist --overwrite --no-asar --no-prune --icon=icon.ico --electron-version=33.4.11 --app-copyright="Béryl" --win32metadata.CompanyName="Béryl" --win32metadata.ProductName=ElectroTale --win32metadata.FileDescription=ElectroTale
+npx @electron/packager "$STAGE" ElectroTale --platform=win32 --arch=x64 --out=dist --overwrite --no-asar --no-prune --icon=icon.ico --electron-version=33.4.11 --app-version="$NUMVER" --build-version="$NUMVER" --app-copyright="Béryl" --win32metadata.CompanyName="Béryl" --win32metadata.ProductName=ElectroTale --win32metadata.FileDescription=ElectroTale
 node seticon.mjs dist/ElectroTale-win32-x64/ElectroTale.exe icon.ico
 MAKENSIS=~/.cache/electron-builder/nsis/nsis-3.0.4.1/linux/makensis
 [ -x "$MAKENSIS" ] || MAKENSIS=makensis   # sinon celui du système (paquet « nsis »)
-"$MAKENSIS" -V2 -DVERSION="$VERSION" installer.nsi
+"$MAKENSIS" -V2 -DVERSION="$VERSION" -DVINUM="$NUMVER" installer.nsi
 ls -la ElectroTale-Installation.exe

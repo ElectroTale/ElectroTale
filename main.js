@@ -9,6 +9,7 @@ const https = require("https");
 const crypto = require("crypto");
 const os = require("os");
 const contenu = require("./contenu");
+const tel = require("./telephone");
 
 // clé secrète tirée au hasard à chaque lancement : les moteurs intégrés ne répondent qu'à qui la connaît (l'app elle-même)
 const ENGINE_KEY = crypto.randomBytes(32).toString("hex");
@@ -17,6 +18,9 @@ const KEY_HEADER = "X-ElectroTale-Key";
 if (!app.requestSingleInstanceLock()) { app.quit(); }
 
 let win = null;
+// toutes les fonctions appelables par la fenêtre ; le téléphone n'en reçoit qu'une partie (telephone.js)
+const RPC = {};
+function handle(ch, fn) { RPC[ch] = fn; ipcMain.handle(ch, fn); }
 let proc = null;              // processus KoboldCpp
 let status = "stopped";       // stopped | starting | ready | external | error
 let statusMsg = "";
@@ -83,7 +87,7 @@ function saveCfg(c) {
   sdCheckSoon();
 }
 
-function send(channel, data) { if (win && !win.isDestroyed()) win.webContents.send(channel, data); }
+function send(channel, data) { if (win && !win.isDestroyed()) win.webContents.send(channel, data); tel.diffuser(channel, data); }
 function setStatus(s, msg) {
   status = s; statusMsg = msg || "";
   if (process.env.KA_DEBUG) console.log("STATUS", s, statusMsg);
@@ -334,7 +338,7 @@ async function downloadKobold(variant) {
 /* ---------- modèles : Hugging Face + téléchargements ---------- */
 const modelsDir = () => { const c = loadCfg(); return c.modelsDir || path.join(userDir(), "modeles"); };
 let dlReq = null, dlFile = null;
-ipcMain.handle("hf:list", async (e, repo) => {
+handle("hf:list", async (e, repo) => {
   repo = String(repo || "").trim().replace(/^https?:\/\/huggingface\.co\//, "").replace(/\/(tree|blob|resolve)\/.*$/, "").replace(/\/+$/, "");
   if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return { ok: false, error: "Nom de dépôt invalide (format : auteur/nom)." };
   try {
@@ -345,7 +349,7 @@ ipcMain.handle("hf:list", async (e, repo) => {
     return { ok: true, repo, files };
   } catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle("dl:start", async (e, { repo, file, url, kind }) => {
+handle("dl:start", async (e, { repo, file, url, kind }) => {
   if (dlReq) return { ok: false, error: "Un téléchargement est déjà en cours." };
   const src = url || ("https://huggingface.co/" + repo + "/resolve/main/" + file.split("/").map(encodeURIComponent).join("/") + "?download=true");
   const name = path.basename(file || new URL(src).pathname);
@@ -360,8 +364,8 @@ ipcMain.handle("dl:start", async (e, { repo, file, url, kind }) => {
   } catch (err) { return { ok: false, error: err.message }; }
   finally { dlReq = null; dlFile = null; }
 });
-ipcMain.handle("dl:cancel", () => { if (dlReq) { dlReq.destroy(new Error("Téléchargement annulé.")); } return true; });
-ipcMain.handle("dl:pickDir", async () => {
+handle("dl:cancel", () => { if (dlReq) { dlReq.destroy(new Error("Téléchargement annulé.")); } return true; });
+handle("dl:pickDir", async () => {
   const r = await dialog.showOpenDialog(win, { title: "Dossier des modèles", properties: ["openDirectory", "createDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
   const c = loadCfg(); c.modelsDir = r.filePaths[0]; saveCfg(c); return c;
@@ -400,7 +404,7 @@ function downloadCancelable(url, dest, onProgress, depth = 0) {
     req.on("error", err => { try { fs.unlinkSync(dest + ".part"); } catch (e) {} reject(err); });
   });
 }
-ipcMain.handle("engine:pickExtra", async (e, kind) => {
+handle("engine:pickExtra", async (e, kind) => {
   const r = await dialog.showOpenDialog(win, { title: kind === "sd" ? "Modèle d'images" : "Modèle de voix", properties: ["openFile"],
     filters: [{ name: "Modèles", extensions: ["gguf", "safetensors", "ckpt"] }] });
   if (r.canceled || !r.filePaths[0]) return null;
@@ -410,19 +414,25 @@ ipcMain.handle("engine:pickExtra", async (e, kind) => {
 /* ---------- stockage des aventures (fichiers) ---------- */
 const dataDir = () => path.join(userDir(), "donnees");
 const keyFile = k => path.join(dataDir(), String(k).replace(/[^\w.-]/g, "_") + ".json");
-ipcMain.on("store:get", (e, k) => { try { e.returnValue = fs.readFileSync(keyFile(k), "utf8"); } catch (err) { e.returnValue = null; } });
-ipcMain.on("store:set", (e, k, v) => {
-  try {
-    fs.mkdirSync(dataDir(), { recursive: true });
-    const f = keyFile(k);
-    if (fs.existsSync(f)) fs.copyFileSync(f, f + ".bak");   // copie de secours de la version précédente
-    fs.writeFileSync(f + ".tmp", v);
-    fs.renameSync(f + ".tmp", f);
-    e.returnValue = true;
-  } catch (err) { e.returnValue = false; }
-});
-ipcMain.on("store:del", (e, k) => { try { fs.unlinkSync(keyFile(k)); } catch (err) {} e.returnValue = true; });
-ipcMain.handle("store:openDir", () => { fs.mkdirSync(dataDir(), { recursive: true }); shell.openPath(dataDir()); });
+const store = {
+  get(k) { try { return fs.readFileSync(keyFile(k), "utf8"); } catch (err) { return null; } },
+  set(k, v) {
+    try {
+      fs.mkdirSync(dataDir(), { recursive: true });
+      const f = keyFile(k);
+      if (fs.existsSync(f)) fs.copyFileSync(f, f + ".bak");   // copie de secours de la version précédente
+      fs.writeFileSync(f + ".tmp", String(v));
+      fs.renameSync(f + ".tmp", f);
+      return true;
+    } catch (err) { return false; }
+  },
+  del(k) { try { fs.unlinkSync(keyFile(k)); } catch (err) {} return true; }
+};
+// pendant qu'une partie se joue sur le téléphone, la fenêtre du PC n'écrit plus rien (sinon elle écraserait la partie)
+ipcMain.on("store:get", (e, k) => { e.returnValue = store.get(k); });
+ipcMain.on("store:set", (e, k, v) => { e.returnValue = tel.pcPeutEcrire() ? store.set(k, v) : false; });
+ipcMain.on("store:del", (e, k) => { e.returnValue = tel.pcPeutEcrire() ? store.del(k) : false; });
+handle("store:openDir", () => { fs.mkdirSync(dataDir(), { recursive: true }); shell.openPath(dataDir()); });
 
 /* ---------- téléchargement de llama.cpp ---------- */
 function unzip(zip, dir) {
@@ -830,7 +840,7 @@ function installedState(cat = catalogue()) {
   if (c.kokoroDir && fs.existsSync(path.join(c.kokoroDir, "model.onnx"))) out["kokoro-fr"] = c.kokoroDir;
   return out;
 }
-ipcMain.handle("launcher:scan", async () => {
+handle("launcher:scan", async () => {
   const pc = await scanPc(), c = loadCfg(), cat = catalogue();
   const items = {};
   for (const kind of Object.keys(cat)) items[kind] = cat[kind].map(it => ({ id: it.id, name: it.name, note: it.note, sizeGB: it.sizeGB, needGB: it.needGB, rate: rateItem(pc, it) }));
@@ -892,7 +902,7 @@ function sha256File(file) {
 }
 
 let launchBusy = false;
-ipcMain.handle("launcher:install", (e, picks) => launcherInstall(picks));
+handle("launcher:install", (e, picks) => launcherInstall(picks));
 async function launcherInstall(picks) {
   if (launchBusy || dlReq) return { ok: false, error: "Un téléchargement est déjà en cours." };
   picks = picks && typeof picks === "object" ? picks : {};
@@ -958,7 +968,7 @@ async function launcherInstall(picks) {
   } finally { launchBusy = false; dlReq = null; }
 }
 // « Jouer » avec un modèle déjà installé (ou sans images) : on le branche sans rien télécharger
-ipcMain.handle("launcher:use", (e, picks) => {
+handle("launcher:use", (e, picks) => {
   picks = picks && typeof picks === "object" ? picks : {};
   const have = installedState(), c = loadCfg();
   let text = false;
@@ -971,7 +981,7 @@ ipcMain.handle("launcher:use", (e, picks) => {
   return { text, config: loadCfg() };
 });
 // bouton ⚡ de la barre de dessin : passe au modèle rapide (le télécharge d'abord s'il le faut)
-ipcMain.handle("sd:useFast", async () => {
+handle("sd:useFast", async () => {
   const id = "lcm-dreamshaper";
   if (!installedState()[id]) {
     const r = await launcherInstall({ sd: id });
@@ -1015,7 +1025,7 @@ async function applyTune(t) {
   clearTimeout(sdCheckTimer); await sdCheck();
   if (!sdProc) await startSd();
 }
-ipcMain.handle("sd:bench", async (e, size) => {
+handle("sd:bench", async (e, size) => {
   if (benchOn) return { ok: false, error: "Le test de vitesse tourne déjà." };
   const c0 = loadCfg();
   if (!c0.sdOn || !c0.sdModel || !fs.existsSync(c0.sdModel)) return { ok: false, error: "Aucun modèle d'images choisi." };
@@ -1058,30 +1068,30 @@ ipcMain.handle("sd:bench", async (e, size) => {
     return { ok: false, error: err.message, results };
   } finally { benchOn = false; }
 });
-ipcMain.handle("sd:benchStop", () => { benchStop = true; if (sdProc) httpPostJson(loadCfg().sdPort, "/sdapi/v1/interrupt", {}, 3000); return true; });
-ipcMain.handle("launcher:pause", () => { if (dlReq) dlReq.destroy(new Error("Téléchargement mis en pause : il reprendra où il s'est arrêté.")); return true; });
-ipcMain.handle("launcher:setAtStart", (e, on) => { const c = loadCfg(); c.launcherAtStart = !!on; saveCfg(c); return true; });
+handle("sd:benchStop", () => { benchStop = true; if (sdProc) httpPostJson(loadCfg().sdPort, "/sdapi/v1/interrupt", {}, 3000); return true; });
+handle("launcher:pause", () => { if (dlReq) dlReq.destroy(new Error("Téléchargement mis en pause : il reprendra où il s'est arrêté.")); return true; });
+handle("launcher:setAtStart", (e, on) => { const c = loadCfg(); c.launcherAtStart = !!on; saveCfg(c); return true; });
 
 /* ---------- IPC ---------- */
-ipcMain.handle("sd:download", async (e, variant) => {
+handle("sd:download", async (e, variant) => {
   try { return { ok: true, ...(await downloadSd(variant)) }; }
   catch (err) { log("[images] téléchargement impossible : " + err.message); return { ok: false, error: err.message }; }
 });
-ipcMain.handle("sd:start", () => startSd());
-ipcMain.handle("sd:stop", () => stopSd());
-ipcMain.handle("sd:status", () => ({ status: sdStatus, port: loadCfg().sdPort }));
-ipcMain.handle("tts:download", async () => {
+handle("sd:start", () => startSd());
+handle("sd:stop", () => stopSd());
+handle("sd:status", () => ({ status: sdStatus, port: loadCfg().sdPort }));
+handle("tts:download", async () => {
   try { return { ok: true, ...(await downloadKokoro()) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle("tts:speak", async (e, text, sid, lang) => {
+handle("tts:speak", async (e, text, sid, lang) => {
   try { return { ok: true, audio: await kokoroSpeak(String(text).slice(0, 3000), Math.max(0, Math.min(53, parseInt(sid) || 30)), String(lang || "fr")) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle("engine:getConfig", () => ({ ...loadCfg(), bundled: hasBundled() }));
+handle("engine:getConfig", () => ({ ...loadCfg(), bundled: hasBundled() }));
 // les chemins de programmes ne se changent que par une boîte « Choisir un fichier » ou un téléchargement, jamais depuis la page
 const PROTECTED_CFG = ["exePath", "llamaServer", "sdServer", "kokoroExe", "kokoroDir", "modelsDir", "integreMigrated", "installed", "modsOff"];
-ipcMain.handle("engine:setConfig", (e, patch) => {
+handle("engine:setConfig", (e, patch) => {
   const p = { ...(patch && typeof patch === "object" ? patch : {}) };
   PROTECTED_CFG.forEach(k => delete p[k]);
   if ("engine" in p && !["integre", "llamacpp", "koboldcpp"].includes(p.engine)) delete p.engine;
@@ -1090,12 +1100,12 @@ ipcMain.handle("engine:setConfig", (e, patch) => {
   ["port", "sdPort", "voicePort"].forEach(k => { if (k in p && !(Number.isInteger(+p[k]) && +p[k] >= 1024 && +p[k] <= 65535)) delete p[k]; });
   const c = { ...loadCfg(), ...p }; saveCfg(c); return c;
 });
-ipcMain.handle("engine:status", () => ({ status, msg: statusMsg, log: logTail }));
-ipcMain.handle("engine:start", () => { startSd(); return startEngine(); });
-ipcMain.handle("engine:stop", () => { stopSd(); return stopEngine(); });
-ipcMain.handle("engine:restart", async () => { await stopSd(); await stopEngine(); startSd(); return startEngine(); });
-ipcMain.handle("engine:detectGpu", () => detectGpu());
-ipcMain.handle("engine:pickExe", async () => {
+handle("engine:status", () => ({ status, msg: statusMsg, log: logTail }));
+handle("engine:start", () => { startSd(); return startEngine(); });
+handle("engine:stop", () => { stopSd(); return stopEngine(); });
+handle("engine:restart", async () => { await stopSd(); await stopEngine(); startSd(); return startEngine(); });
+handle("engine:detectGpu", () => detectGpu());
+handle("engine:pickExe", async () => {
   const r = await dialog.showOpenDialog(win, { title: "Choisir le moteur (llama-server.exe ou koboldcpp.exe)", properties: ["openFile"],
     filters: process.platform === "win32" ? [{ name: "Moteur", extensions: ["exe"] }] : [] });
   if (r.canceled || !r.filePaths[0]) return null;
@@ -1104,7 +1114,7 @@ ipcMain.handle("engine:pickExe", async () => {
   else { c.exePath = f; c.engine = "koboldcpp"; }
   saveCfg(c); return c;
 });
-ipcMain.handle("engine:pickModel", async () => {
+handle("engine:pickModel", async () => {
   const c = loadCfg();
   const r = await dialog.showOpenDialog(win, { title: "Choisir un modèle", properties: ["openFile"],
     defaultPath: c.modelPath ? path.dirname(c.modelPath) : undefined,
@@ -1117,23 +1127,20 @@ function setModel(p) {
   c.recentModels = [p, ...c.recentModels.filter(x => x !== p)].slice(0, 6);
   saveCfg(c); return c;
 }
-ipcMain.handle("engine:useModel", (e, p) => fs.existsSync(p) ? setModel(p) : null);
-ipcMain.handle("engine:downloadLlama", async (e, variant) => {
+handle("engine:useModel", (e, p) => fs.existsSync(p) ? setModel(p) : null);
+handle("engine:downloadLlama", async (e, variant) => {
   try { return { ok: true, ...(await downloadLlama(variant)) }; }
   catch (err) { setStatus("error", "Téléchargement de llama.cpp impossible : " + err.message); return { ok: false, error: err.message }; }
 });
-ipcMain.handle("engine:download", async (e, variant) => {
+handle("engine:download", async (e, variant) => {
   try { return { ok: true, ...(await downloadKobold(variant)) }; }
   catch (err) { setStatus("error", "Téléchargement impossible : " + err.message); return { ok: false, error: err.message }; }
 });
 const licencesDir = () => path.join(__dirname, "licences");
-ipcMain.handle("app:info", () => ({ version: app.getVersion(), licences: fs.existsSync(licencesDir()) }));
+handle("app:info", () => ({ version: app.getVersion(), licences: fs.existsSync(licencesDir()) }));
 // Export du grimoire en PDF : fenêtre cachée, sans JavaScript, rendu puis impression
-ipcMain.handle("book:pdf", async (_e, html, name) => {
-  if (typeof html !== "string" || html.length > 200 * 1024 * 1024) return { ok: false, error: "Contenu invalide" };
-  const safe = String(name || "Grimoire").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80) || "Grimoire";
-  const r = await dialog.showSaveDialog(win, { title: "Enregistrer le livre", defaultPath: safe + ".pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] });
-  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+// le livre en PDF : imprimé par une fenêtre cachée, sans JavaScript
+async function livrePdf(html) {
   const tmp = path.join(app.getPath("temp"), "electrotale-livre-" + crypto.randomBytes(6).toString("hex") + ".html");
   const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false, contextIsolation: true, nodeIntegration: false } });
   pw.webContents.on("will-navigate", (ev) => ev.preventDefault());
@@ -1141,17 +1148,21 @@ ipcMain.handle("book:pdf", async (_e, html, name) => {
   try {
     fs.writeFileSync(tmp, html, "utf8");
     await pw.loadFile(tmp);
-    const pdf = await pw.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true });
-    fs.writeFileSync(r.filePath, pdf);
-    return { ok: true, path: r.filePath };
-  } catch (err) {
-    return { ok: false, error: String(err && err.message || err) };
+    return await pw.webContents.printToPDF({ printBackground: true, preferCSSPageSize: true });
   } finally {
     pw.destroy(); try { fs.unlinkSync(tmp); } catch {}
   }
+}
+handle("book:pdf", async (_e, html, name) => {
+  if (typeof html !== "string" || html.length > 200 * 1024 * 1024) return { ok: false, error: "Contenu invalide" };
+  const safe = String(name || "Grimoire").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80) || "Grimoire";
+  const r = await dialog.showSaveDialog(win, { title: "Enregistrer le livre", defaultPath: safe + ".pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] });
+  if (r.canceled || !r.filePath) return { ok: false, canceled: true };
+  try { fs.writeFileSync(r.filePath, await livrePdf(html)); return { ok: true, path: r.filePath }; }
+  catch (err) { return { ok: false, error: String(err && err.message || err) }; }
 });
-ipcMain.handle("app:openLicences", () => { const f = path.join(licencesDir(), "LICENCES-TIERS.txt"); if (fs.existsSync(f)) shell.showItemInFolder(f); });
-ipcMain.handle("engine:showFile", (e, p) => { if (p && typeof p === "string" && path.isAbsolute(p)) shell.showItemInFolder(p); });
+handle("app:openLicences", () => { const f = path.join(licencesDir(), "LICENCES-TIERS.txt"); if (fs.existsSync(f)) shell.showItemInFolder(f); });
+handle("engine:showFile", (e, p) => { if (p && typeof p === "string" && path.isAbsolute(p)) shell.showItemInFolder(p); });
 
 /* ---------- fenêtre ---------- */
 function createWindow() {
@@ -1212,7 +1223,13 @@ function secureSession() {
 
 app.whenReady().then(() => {
   secureSession();
-  contenu.installer({ loadCfg, saveCfg, origineEnPlus: () => contenu.catalogueOrigine(LAUNCH_CATALOG) });
+  const lecture = contenu.installer({ loadCfg, saveCfg, handle, origineEnPlus: () => contenu.catalogueOrigine(LAUNCH_CATALOG) });
+  tel.installer({
+    loadCfg, saveCfg, handle, send, log, RPC, store, livrePdf, ENGINE_KEY, KEY_HEADER, appDir: __dirname,
+    lireContenu: lecture.lire,
+    portsMoteurs: () => { const s = enginePorts(); s.add(+loadCfg().port || 5001); return s; },
+    versPC: (ch, d) => { if (!win || win.isDestroyed()) return false; win.webContents.send(ch, d); return true; }
+  });
   migrateFromOldName();
   createWindow();
   if (process.env.KA_TEST) setTimeout(() => require(process.env.KA_TEST)(win, app, { forkWorker }), 1500);
@@ -1221,7 +1238,7 @@ app.whenReady().then(() => {
 });
 let quitting = false;
 app.on("before-quit", async e => {
-  stopSd(); stopVoice();
+  stopSd(); stopVoice(); tel.arreter();
   if (quitting || !proc) return;
   e.preventDefault(); quitting = true;
   await stopEngine();

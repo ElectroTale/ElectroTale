@@ -1,6 +1,6 @@
 {
   "name": "electrotale",
-  "version": "1.17.4",
+  "version": "1.17.4-T",
   "description": "Aventures textuelles locales avec l IA, moteur intégré",
   "main": "main.js",
   "scripts": {
@@ -28,6 +28,7 @@
       "main.js",
       "preload.js",
       "contenu.js",
+      "telephone.js",
       "app/**/*",
       "package.json"
     ],
@@ -61,6 +62,7 @@
   },
   "dependencies": {
     "node-llama-cpp": "3.22.2",
+    "qrcode": "1.5.4",
     "sherpa-onnx-node": "1.13.8",
     "stable-diffusion-cpp-node-api": "0.15.0"
   }

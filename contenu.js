@@ -219,26 +219,27 @@ function ecrireOrigine(fichiers) {
 const nomFichier = t => (String(t || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
   .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "sans-titre");
 
-function installer({ loadCfg, saveCfg, origineEnPlus }) {
+function installer({ loadCfg, saveCfg, origineEnPlus, handle = (ch, fn) => ipcMain.handle(ch, fn) }) {
   // lecture synchrone : le jeu en a besoin avant d'afficher quoi que ce soit
-  ipcMain.on("contenu:lire", e => {
-    try { e.returnValue = lireTout((loadCfg().modsOff || []).filter(x => typeof x === "string")); }
-    catch (err) { e.returnValue = { racine: racine(), mods: [], couches: [], erreurs: [err.message] }; }
-  });
-  ipcMain.handle("contenu:origine", (e, fichiers) => ecrireOrigine(fichiers && typeof fichiers === "object" ? { ...fichiers, ...origineEnPlus() } : null));
-  ipcMain.handle("contenu:ouvrir", (e, sous) => {
+  const lire = () => {
+    try { return lireTout((loadCfg().modsOff || []).filter(x => typeof x === "string")); }
+    catch (err) { return { racine: racine(), mods: [], couches: [], erreurs: [err.message] }; }
+  };
+  ipcMain.on("contenu:lire", e => { e.returnValue = lire(); });
+  handle("contenu:origine", (e, fichiers) => ecrireOrigine(fichiers && typeof fichiers === "object" ? { ...fichiers, ...origineEnPlus() } : null));
+  handle("contenu:ouvrir", (e, sous) => {
     preparer();
     const R = racine(), p = sous && DOSSIERS.concat([ORIGINE]).includes(sous) ? path.join(R, sous) : R;
     return shell.openPath(p);
   });
-  ipcMain.handle("contenu:mod", (e, dossier, actif) => {
+  handle("contenu:mod", (e, dossier, actif) => {
     const c = loadCfg(), off = new Set((c.modsOff || []).filter(x => typeof x === "string"));
     if (typeof dossier !== "string") return false;
     if (actif) off.delete(dossier); else off.add(dossier);
     c.modsOff = [...off]; saveCfg(c); return true;
   });
   // une aventure du dossier (ou d'un mod), lue seulement quand on la choisit
-  ipcMain.handle("contenu:aventure", (e, source, rel) => {
+  handle("contenu:aventure", (e, source, rel) => {
     const R = racine();
     if (typeof rel !== "string" || !/^aventures\/[^/\\]+\.json$/i.test(rel)) return null;
     let base = R;
@@ -253,7 +254,7 @@ function installer({ loadCfg, saveCfg, origineEnPlus }) {
     try { return lireTexte(f, MAX_AVENTURE); } catch (err) { return { erreur: err.message }; }
   });
   // enregistrer une fiche de personnage ou un monde dans le dossier du joueur (jamais ailleurs)
-  ipcMain.handle("contenu:enregistrer", (e, cat, titre, texte) => {
+  handle("contenu:enregistrer", (e, cat, titre, texte) => {
     if (!["personnages", "aventures"].includes(cat) || typeof texte !== "string" || texte.length > MAX_AVENTURE) return null;
     preparer();
     const dir = path.join(racine(), cat);
@@ -263,6 +264,7 @@ function installer({ loadCfg, saveCfg, origineEnPlus }) {
     fs.writeFileSync(f, texte);
     return cat + "/" + path.basename(f);
   });
+  return { lire };
 }
 
 /* ---------- catalogue du lanceur : les IA ajoutées par le joueur ou par un mod ---------- */
