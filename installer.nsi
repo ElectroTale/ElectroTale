@@ -5,6 +5,10 @@ Unicode true
 !ifndef VERSION
   !define VERSION "1.10.0"
 !endif
+; numéro purement chiffré pour Windows (une version comme 1.17.4-T devient 1.17.4)
+!ifndef VINUM
+  !define VINUM "${VERSION}"
+!endif
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\ElectroTale"
 
 Name "${APPNAME}"
@@ -31,7 +35,7 @@ BrandingText "${APPNAME} ${VERSION}"
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "French"
 
-VIProductVersion "${VERSION}.0"
+VIProductVersion "${VINUM}.0"
 VIAddVersionKey /LANG=${LANG_FRENCH} "ProductName" "${APPNAME}"
 VIAddVersionKey /LANG=${LANG_FRENCH} "FileDescription" "Installation de ${APPNAME}"
 VIAddVersionKey /LANG=${LANG_FRENCH} "FileVersion" "${VERSION}"
