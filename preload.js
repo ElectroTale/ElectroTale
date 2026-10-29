@@ -55,6 +55,17 @@ contextBridge.exposeInMainWorld("engine", {
     aventure: (source, rel) => ipcRenderer.invoke("contenu:aventure", source, rel),
     enregistrer: (cat, titre, texte) => ipcRenderer.invoke("contenu:enregistrer", cat, titre, texte)
   },
+  // jouer depuis un téléphone sur le même Wi-Fi
+  tel: {
+    etat: () => ipcRenderer.invoke("tel:etat"),
+    activer: on => ipcRenderer.invoke("tel:activer", on),
+    nouveauCode: () => ipcRenderer.invoke("tel:nouveauCode"),
+    oublier: id => ipcRenderer.invoke("tel:oublier", id),
+    reprendre: () => ipcRenderer.invoke("tel:reprendre"),
+    ack: () => ipcRenderer.invoke("tel:ack"),
+    onEtat: on("tel:etat")
+  },
+  onTel: on("tel:main"),
   launcher: {
     scan: () => ipcRenderer.invoke("launcher:scan"),
     install: picks => ipcRenderer.invoke("launcher:install", picks),

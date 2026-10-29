@@ -6,7 +6,7 @@ ROOT=$PWD
 STAGE="${TMPDIR:-/tmp}/electrotale-build/app"
 VERSION=$(node -p 'require("./package.json").version')
 rm -rf "$STAGE" && mkdir -p "$STAGE"
-cp -r main.js preload.js contenu.js app engines "$STAGE"/
+cp -r main.js preload.js contenu.js telephone.js app engines "$STAGE"/
 node -e '
 const p=require("./package.json");
 const o={name:p.name,productName:p.productName,version:p.version,description:p.description,main:p.main,author:p.author,license:p.license,dependencies:p.dependencies};

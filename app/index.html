@@ -663,6 +663,29 @@ h3{border-bottom:none;margin-top:28px}
 .hm-jeu b{color:var(--txt)}
 .hm-jeu:hover{border-color:var(--accent)}
 #hud .hq{cursor:pointer}
+/* téléphone (Menu → Téléphone) */
+.telgrid{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+#telQr{width:200px;height:200px;flex:none;border-radius:10px;overflow:hidden;background:#efe6d2}
+#telQr svg{width:100%;height:100%;display:block}
+.telcode{font:bold 28px/1 monospace;letter-spacing:6px;color:var(--accent);vertical-align:middle;margin:0 6px}
+.teldev{display:flex;align-items:center;gap:8px}
+.teldev .sp{flex:1}
+#telPause{position:fixed;inset:0;z-index:99999;background:rgba(10,9,6,.94);display:flex;align-items:center;justify-content:center;text-align:center;padding:24px;color:#efe6d2}
+#telPause h2{margin:8px 0;font-size:22px}#telPause p{color:#bfb39a}#telPause button{font-size:18px;padding:12px 22px;margin-top:10px}
+/* petits écrans (téléphone) : la barre du haut défile au doigt au lieu d'élargir la page */
+@media (max-width:600px){
+  #topbar{gap:2px;padding:6px 6px;overflow-x:auto;scrollbar-width:none}
+  #topbar::-webkit-scrollbar{display:none}
+  #topbar .tb{padding:5px 6px;font-size:17px;flex:none}
+  #topbar .tbrand{display:none}
+  #topbar .tbadv{max-width:34vw;flex:none;padding:5px 10px}
+  #topbar #chipTxt{display:none}
+  #story{padding:18px 14px}
+  #inputbar{padding-left:8px;padding-right:8px}
+  #actions{gap:4px}
+  #actions button{padding:6px 8px}
+}
+html.tel #hmLauncher,html.tel #engineTab,html.tel #telTab,html.tel #credOpen,html.tel #dosOpen,html.tel #dosOrig,html.tel #kokoroBox{display:none!important}
 </style>
 </head>
 <body>
@@ -730,6 +753,7 @@ h3{border-bottom:none;margin-top:28px}
     <button data-t="ia"><i>🎭</i>Le Conteur</button>
     <button data-t="engine" id="engineTab" hidden><i>🔌</i>Moteur</button>
     <button data-t="look"><i>🎨</i>Apparence &amp; voix</button>
+    <button data-t="tel" id="telTab" hidden><i>📱</i>Téléphone</button>
     <button data-t="file"><i>💾</i>Fichiers</button>
     <button data-t="dossier"><i>📂</i>Mon dossier</button>
     <button data-t="credits"><i>📜</i>Licences &amp; crédits</button>
@@ -1109,6 +1133,29 @@ h3{border-bottom:none;margin-top:28px}
     </table>
     <p class="hint">Ce qui ne se modifie pas : le code du programme (un mod qui exécute du code pourrait abîmer ton PC ; pour programmer, il y a les Scripts d'une aventure), les textes des boutons et menus (ils viendront avec le choix de la langue), et la règle des moins de 18 ans.</p>
     <p class="hint">Sécurité : ElectroTale ne lit dans ce dossier que des données (.json, .txt, .css et des images), jamais de programme. Les scripts d'une aventure restent coupés tant que tu ne les as pas activés. La règle « rien de sexuel avec un personnage de moins de 18 ans » est fixe et ne dépend d'aucun fichier.</p>
+  </div>
+
+  <div class="pane" id="p-tel">
+    <p>Joue sur ton téléphone Android (ou un iPhone, une tablette). Le PC fait tout le travail (texte, images, voix) et le téléphone affiche l'aventure. Les deux doivent être sur le <b>même Wi-Fi</b>.</p>
+    <label class="hrow"><input type="checkbox" id="telOn"> <b>Autoriser les téléphones</b></label>
+    <p class="hint" id="telMsg"></p>
+    <div id="telBox" hidden>
+      <div class="telgrid">
+        <div id="telQr"></div>
+        <div style="flex:1;min-width:240px">
+          <p><b>1.</b> Sur le téléphone, scanne ce QR code avec l'appareil photo, ou ouvre Chrome et tape l'adresse :</p>
+          <div class="card dospath"><code id="telUrl"></code></div>
+          <p class="hint" id="telAutres"></p>
+          <p><b>2.</b> Tape ce code : <span id="telCode" class="telcode"></span> <button id="telNew" title="Nouveau code">🔄</button></p>
+          <p><b>3.</b> Dans Chrome : <b>⋮</b> puis <b>Ajouter à l'écran d'accueil</b>, pour avoir l'icône ElectroTale sur le téléphone.</p>
+        </div>
+      </div>
+      <h3>Téléphones reliés</h3>
+      <div id="telDevs"></div>
+    </div>
+    <p class="hint">La première fois, Windows demande s'il faut autoriser ElectroTale sur le réseau : coche <b>Réseaux privés</b> et clique sur Autoriser.</p>
+    <p class="hint">Une seule partie à la fois : quand le téléphone joue, le PC se met en pause, et inversement. Rien n'est écrasé.</p>
+    <p class="hint">Sécurité : seuls les appareils de ton réseau local peuvent se connecter. Le code ne sert qu'une fois, puis chaque téléphone reçoit une clé secrète. Le téléphone joue, mais il ne peut ni changer les moteurs ni ouvrir les fichiers du PC. La règle des moins de 18 ans s'applique pareil. À n'activer que sur le Wi-Fi de la maison, pas sur un Wi-Fi public.</p>
   </div>
 
   <div class="pane" id="p-credits">
@@ -3127,7 +3174,7 @@ let cardFilter = "Tous";
 /* ---- menu plein écran ---- */
 let curTab = "mem";
 const TAB_TITLES = {tree:"🌳 Fil du récit", mem:"📖 Mémoire", sheet:"👤 Personnage", cards:"🃏 Codex", world:"🌍 Monde", map:"🗺 Carte du monde", starts:"🚩 Départs",
-  scripts:"⚙ Scripts", modes:"💬 Modes d'action", ia:"🎭 Le Conteur", engine:"🔌 Moteur", look:"🎨 Apparence & voix", file:"💾 Fichiers", dossier:"📂 Mon dossier ElectroTale", credits:"📜 Licences & crédits"};
+  scripts:"⚙ Scripts", modes:"💬 Modes d'action", ia:"🎭 Le Conteur", engine:"🔌 Moteur", look:"🎨 Apparence & voix", file:"💾 Fichiers", dossier:"📂 Mon dossier ElectroTale", tel:"📱 Jouer sur le téléphone", credits:"📜 Licences & crédits"};
 const menuOpen = () => !$("menu").hidden;
 function showTab(t){
   if(t === "wi") t = "cards";
@@ -3146,6 +3193,7 @@ function showTab(t){
   if(t === "tree") setTimeout(renderTree, 0);
   if(t === "scripts") fillScripts();
   if(t === "dossier") renderDossier();
+  if(t === "tel") renderTel();
   $("mbody").querySelector(".mscroll").scrollTop = 0;
 }
 function closeMenu(){
@@ -4869,6 +4917,7 @@ async function initEngine(){
   const st = await E.status();
   (st.log || []).forEach(engLog);
   onEngineStatus(st);
+  if(window.ELECTROTALE_TEL){ $("engineTab").hidden = true; return; }   // sur le téléphone : les moteurs se règlent sur le PC
   E.detectGpu().then(g => { $("engGpuName").textContent = g.name ? "(détectée : " + g.name + ")" : ""; });
   initLauncher();
   const needSetup = engCfg.engine === "integre" ? !engCfg.modelPath : (!(engCfg.engine === "koboldcpp" ? engCfg.exePath : engCfg.llamaServer) || !engCfg.modelPath);
@@ -6623,7 +6672,56 @@ function initJeu(){
   window.addEventListener("focus", () => { if(checkDaily()) renderHomeJeu(); });
 }
 
-load(); appliquerApresChargement(); absenceSince = (curMeta() || {}).updated || 0; normJeu(); bind(); fillAll(); setMode(curMode().id); initTalk(); initExtras(); initHome(); initDossier(); initJeu(); showHome(); initEngine();
+/* ================= jouer sur le téléphone ================= */
+// le PC sert la page au téléphone (telephone.js) ; ici, les réglages et la pause quand le téléphone joue
+function telPause(on){
+  let d = $("telPause");
+  if(!on){ if(d) d.remove(); return; }
+  if(d) return;
+  d = document.createElement("div"); d.id = "telPause";
+  d.innerHTML = '<div><div style="font-size:44px">📱</div><h2>La partie continue sur le téléphone</h2><p>Pour ne rien écraser, le PC attend. Tu peux reprendre ici quand tu veux.</p><button class="primary">▶ Reprendre sur le PC</button></div>';
+  d.querySelector("button").onclick = async () => { await window.engine.tel.reprendre(); location.reload(); };
+  document.body.appendChild(d);
+}
+async function renderTel(){
+  const T = window.engine && window.engine.tel; if(!T) return;
+  let e; try{ e = await T.etat(); }catch(err){ return; }
+  $("telOn").checked = e.on;
+  $("telBox").hidden = !(e.on && e.actif);
+  $("telMsg").textContent = e.on && !e.actif ? "⚠ Le serveur du téléphone ne démarre pas" + (e.erreur ? " : " + e.erreur : ".") : "";
+  if(!e.on || !e.actif) return;
+  if(!e.adresses.length){ $("telMsg").textContent = "⚠ Le PC n'est relié à aucun réseau local (Wi-Fi ou câble)."; $("telBox").hidden = true; return; }
+  $("telQr").innerHTML = e.qr || "";
+  $("telUrl").textContent = e.adresses[0];
+  $("telAutres").textContent = e.adresses.length > 1 ? "Si ça ne marche pas, essaie : " + e.adresses.slice(1).join("  ou  ") : "";
+  $("telCode").textContent = e.code.slice(0, 3) + " " + e.code.slice(3);
+  const box = $("telDevs"); box.innerHTML = "";
+  if(!e.appareils.length) box.innerHTML = '<p class="hint">Aucun pour l\'instant.</p>';
+  e.appareils.forEach(a => {
+    const r = document.createElement("div"); r.className = "card teldev";
+    const n = document.createElement("span"); n.textContent = (a.connecte ? "🟢 " : "⚪ ") + a.nom + " · relié le " + new Date(a.cree).toLocaleDateString("fr-CH");
+    const sp = document.createElement("span"); sp.className = "sp";
+    const b = document.createElement("button"); b.textContent = "Oublier";
+    b.onclick = async () => { await T.oublier(a.id); renderTel(); };
+    r.append(n, sp, b); box.appendChild(r);
+  });
+}
+function initTel(){
+  const E = window.engine;
+  if(!E || !E.tel || window.ELECTROTALE_TEL) return;
+  $("telTab").hidden = false;
+  $("telOn").onchange = async ev => { await E.tel.activer(ev.target.checked); renderTel(); };
+  $("telNew").onclick = async () => { await E.tel.nouveauCode(); renderTel(); };
+  E.tel.onEtat(() => { if(menuOpen() && curTab === "tel") renderTel(); });
+  // le téléphone prend la main : on enregistre tout de suite, puis pause
+  E.onTel(d => {
+    if(d && d.qui === "tel"){ try{ saveNow(); }catch(err){} E.tel.ack(); telPause(true); }
+    else if(d && d.qui === "pc" && $("telPause")) location.reload();
+  });
+  E.tel.etat().then(e => { if(e.main === "tel") telPause(true); }).catch(() => {});
+}
+
+load(); appliquerApresChargement(); absenceSince = (curMeta() || {}).updated || 0; normJeu(); bind(); fillAll(); setMode(curMode().id); initTalk(); initExtras(); initHome(); initDossier(); initJeu(); initTel(); showHome(); initEngine();
 </script>
 </body>
 </html>

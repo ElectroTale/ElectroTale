@@ -13,6 +13,7 @@
 - Des images générées en local (stable-diffusion.cpp) et une voix (Kokoro via sherpa-onnx).
 - Six langues d'histoire : français, anglais, espagnol, italien, allemand, portugais.
 - Un dossier `Documents\ElectroTale` pour modifier mondes, personnages, règles et modèles.
+- Jouer depuis un téléphone Android ou un iPhone sur le même Wi-Fi : le PC fait tourner les IA, le téléphone affiche l'aventure (Menu → Téléphone).
 
 ## Installer
 
