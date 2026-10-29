@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld("engine", {
     del: k => ipcRenderer.sendSync("store:del", k)
   },
   openDataDir: () => ipcRenderer.invoke("store:openDir"),
+  openUiDir: () => ipcRenderer.invoke("dev:openUiDir"),
   hfList: repo => ipcRenderer.invoke("hf:list", repo),
   dlStart: opts => ipcRenderer.invoke("dl:start", opts),
   dlCancel: () => ipcRenderer.invoke("dl:cancel"),

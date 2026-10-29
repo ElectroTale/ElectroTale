@@ -821,6 +821,11 @@ h3{border-bottom:none;margin-top:28px}
     <label class="inline"><input type="checkbox" id="engAuto"> Démarrer le moteur à l'ouverture de l'app</label>
     <p class="hint">Les changements de réglages s'appliquent au prochain démarrage du moteur (↻ Redémarrer).</p>
 
+    <h3>Mode développeur</h3>
+    <label class="inline"><input type="checkbox" id="engDev"> Activer le mode développeur</label>
+    <p class="hint">F12 ouvre les outils d'inspection de l'interface ; F5 (ou Ctrl+R) recharge la page sans redémarrer les moteurs. L'interface est le fichier <b>index.html</b> du dossier ci-dessous : modifie-le, puis F5. Si quelque chose casse, réinstalle simplement ÉlectroTale.</p>
+    <button id="engDevDir" class="small">📂 Ouvrir le dossier de l'interface</button>
+
     <h3>Journal</h3>
     <div id="engLog"></div>
     <button id="engOpenDir" class="small" style="margin-top:6px">Ouvrir le dossier du moteur</button>
@@ -4805,7 +4810,7 @@ function fillEngine(c){
   setPath("engSd", c.sdModel, "Aucun"); setPath("engTts", c.ttsModel, "Aucun"); setPath("engTtsWav", c.ttsWav ? "WavTokenizer : " + c.ttsWav : "", "WavTokenizer : aucun");
   $("engSdOn").checked = !!c.sdOn; $("engTtsOn").checked = !!c.ttsOn; $("engSdGpu").value = c.sdGpu || "auto";
   $("engGpu").value = c.gpu; $("engLayers").value = c.layers; $("engCtx").value = String(c.ctx);
-  $("engPort").value = c.port; $("engFlash").checked = !!c.flash; $("engExtra").value = c.extraArgs || ""; $("engAuto").checked = !!c.autoStart;
+  $("engPort").value = c.port; $("engFlash").checked = !!c.flash; $("engExtra").value = c.extraArgs || ""; $("engAuto").checked = !!c.autoStart; $("engDev").checked = !!c.devMode;
   const rec = $("engRecent"); rec.innerHTML = "";
   (c.recentModels || []).filter(p => p !== c.modelPath).forEach(p => {
     const b = document.createElement("button");
@@ -4900,6 +4905,8 @@ async function initEngine(){
   $("engFlash").onchange = e => patch({flash:e.target.checked});
   $("engExtra").onchange = e => patch({extraArgs:e.target.value});
   $("engAuto").onchange = e => patch({autoStart:e.target.checked});
+  $("engDev").onchange = e => patch({devMode:e.target.checked});
+  $("engDevDir").onclick = () => E.openUiDir();
   $("engOpenDir").onclick = () => E.showFile(engCfg.exePath || engCfg.modelPath);
   $("engDlModel").onclick = () => openDownloader("text");
   $("engSdInstall").onclick = async () => {
