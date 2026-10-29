@@ -2573,13 +2573,22 @@ function chunkText(c, i, arr){
 function lastReal(){ for(let i = state.story.length - 1; i >= 0; i--) if(state.story[i].type !== "img") return state.story[i]; return null; }
 const storyText = () => state.story.map(chunkText).join("");
 
+// réponse illisible (charabia de chiffres, morceaux d'octets « Â », « &# ») : on ne la garde pas, et on ne la relit pas.
+// Sinon le modèle relit le charabia des tours précédents et l'imite, même une fois la cause réparée.
+function looksGarbled(t){
+  t = String(t || "");
+  const bad = (t.match(/Â|Ã|\uFFFD|&#/g) || []).length + (t.match(/\b(\w+)(\s+\1\b){2,}/g) || []).length * 2;
+  if(bad >= 4 && bad * 40 > t.length) return true;
+  const ns = t.replace(/\s/g, "");
+  return ns.length >= 10 && (ns.match(/\p{L}/gu) || []).length < ns.length * 0.6;
+}
 function buildPrompt(){
   const cfg = state.cfg;
   const budget = Math.max(500, (cfg.maxCtx - cfg.maxLen) * 3.2);
   // Vitesse : le moteur ne relit que ce qui a changé depuis le début du texte. On met donc en tête ce qui bouge peu
   // (règles, monde, mémoire, résumé) et après l'histoire ce qui change souvent (fiche, lieu, cartes du Codex actives).
   const blocks = [SAFE_RULE, langRule(), CONTEUR.consigne, cfg.sysPrompt.trim(), state.sheet.autoTags ? CONTEUR["regles-du-jeu"] : "", cfg.combat !== false ? CONTEUR.combat : "", worldText(), state.memory.trim(),
-                  state.summary && state.summary.trim() ? "[Résumé de l'histoire jusqu'ici]\n" + state.summary.trim() : ""].filter(Boolean);
+                  state.summary && state.summary.trim() && !looksGarbled(state.summary) ? "[Résumé de l'histoire jusqu'ici]\n" + state.summary.trim() : ""].filter(Boolean);
   const live = [sheetText(), locationText(), activeWi().map(w => w.content.trim() + bondNote(w)).join("\n"), omenText(), fightLive(),
                 langId() !== "fr" ? `[Rappel : écris uniquement en ${LG().nom} (${LG().natif}).]` : "",
                 riskyStory() ? GUARD_RULE : ""].filter(Boolean).join("\n\n");
@@ -2588,7 +2597,8 @@ function buildPrompt(){
   const head = blocks.length ? blocks.join("\n\n") + "\n\n" : "";
   const liveLen = instruct ? live.length : 0;
   const an = state.authorsnote.trim();
-  const parts = state.story.map(chunkText);
+  const lisible = state.story.filter(c => !(c.type === "ai" && looksGarbled(c.text)));
+  const parts = lisible.map((c, i) => chunkText(c, i, lisible));
   if(an){
     const depth = Math.min(parseInt(state.anDepth) || 0, parts.length);
     parts.splice(parts.length - depth, 0, "\n[" + an.replace(/^\[|\]$/g, "") + "]\n");
@@ -2797,7 +2807,7 @@ async function generate(){
   abortCtrl = new AbortController(); userStopped = false;
   let ok = false;
   try{
-    let out = "", blocked = false;
+    let out = "", blocked = false, garbledOut = false;
     for(let attempt = 0; attempt < 3 && !out.trim() && !userStopped; attempt++){
       if(attempt) setStatus("Réponse inutilisable, nouvel essai (" + (attempt + 1) + "/3)…");
       let raw = "";
@@ -2815,10 +2825,12 @@ async function generate(){
         }finally{ streaming = false; el.remove(); }
       } else raw = await plainRequest(body);
       out = cleanOutput(raw, stops);
+      if(out.trim() && (looksGarbled(out) || looksGarbled(raw))){ out = ""; garbledOut = true; continue; }
       // réponse qui mêle un enfant et du sexuel : jetée, et réécrite avec la consigne de sécurité
       if(out.trim() && minorSexual(out)){ out = ""; blocked = true; guardNext = true; body.prompt = buildPrompt(); }
     }
     guardNext = false;
+    if(garbledOut && !blocked && !out.trim() && !userStopped) setStatus("Réponse illisible écartée (3 essais). Regarde le journal du moteur dans Moteur, ou essaie un autre modèle.", true);
     if(blocked && !out.trim() && !userStopped) setStatus("Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans. Choisis une autre action.", true);
     const last = lastReal();
     if(last && last.type !== "ai") out = out.replace(/^\n+/, "");
@@ -2834,7 +2846,7 @@ async function generate(){
       setStatus((userStopped ? "Arrêté" : "Prêt") + " · format " + INSTRUCT[fmtKey()].label.split(" (")[0]);
     }
     else if(userStopped) setStatus("Arrêté");
-    else setStatus("Le Conteur n'a rien écrit après 3 essais — modifie la dernière ligne ou change de format (menu → Le Conteur)", true);
+    else if(!garbledOut && !blocked) setStatus("Le Conteur n'a rien écrit après 3 essais — modifie la dernière ligne ou change de format (menu → Le Conteur)", true);
   }catch(e){
     if(e.name === "AbortError") setStatus("Arrêté");
     else setStatus("Erreur : le moteur de texte ne répond pas (" + e.message + (/503/.test(e.message) ? ", il charge encore le modèle : attends « prêt » dans Moteur" : "") + ")", true);
@@ -5133,6 +5145,7 @@ async function talkReply(again){
   const m = out.match(/\[\s*LIEN\s*:?\s*([+\-−]?)\s*(\d+)\s*\]/i);
   let d = m ? Math.min(5, +m[2]) * (m[1] === "-" || m[1] === "−" ? -1 : 1) : 0;
   out = out.replace(/\[\s*LIEN[^\]]*\]?/gi, "").replace(/\s+$/, "").trim();
+  if(out && looksGarbled(out)){ out = ""; toast("✖ Réponse illisible écartée : réessaie."); }
   if(out && minorSexual(out)){ out = ""; toast("✖ Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans."); }
   if(!out){ renderTalk(); return; }
   const before = bondStage(c.bond || 0);
