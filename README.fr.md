@@ -11,6 +11,7 @@
 ## Ce qu'il y a dedans
 
 - Toute l'appli en 6 langues : français, anglais, espagnol, italien, allemand, portugais. Choisis la tienne sur l'accueil (🌍) ; l'histoire suit.
+- La Forge du monde : choisis un genre et une idée, le Conteur crée la description, les peuples, les lieux, les personnages et le début de l'histoire. Tout reste modifiable dans l'Atelier.
 - Un lanceur qui analyse le PC (processeur, mémoire, carte graphique) et télécharge les modèles adaptés.
 - Le destin au d20, des combats et des épreuves, des cartes de tarot, un journal de quêtes, 31 hauts faits et une récompense quotidienne.
 - Des images générées en local (stable-diffusion.cpp) et une voix (Kokoro via sherpa-onnx).

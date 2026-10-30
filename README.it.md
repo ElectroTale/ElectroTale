@@ -11,6 +11,7 @@
 ## Cosa contiene
 
 - Tutta l'app in 6 lingue: italiano, inglese, francese, spagnolo, tedesco e portoghese. Scegli la tua nella schermata iniziale (🌍); la storia la segue.
+- La Forgia del mondo: scegli un genere e un'idea, e il Narratore crea la descrizione, i popoli, i luoghi, i personaggi e l'inizio della storia. Tutto resta modificabile nel Laboratorio.
 - Un launcher che analizza il PC (processore, memoria, scheda grafica) e scarica i modelli adatti.
 - Il destino su un d20, combattimenti e prove, carte dei tarocchi, un diario delle missioni, 31 imprese e una ricompensa giornaliera.
 - Immagini generate in locale (stable-diffusion.cpp) e una voce narrante (Kokoro tramite sherpa-onnx).
