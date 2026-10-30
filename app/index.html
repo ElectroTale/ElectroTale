@@ -2903,6 +2903,7 @@ function cleanOutput(out, stops, live){
 }
 
 let streaming = false, streamUnsupported = false, userStopped = false;
+let garbleCut = false;   // réponse coupée en route parce qu'elle tournait au charabia
 async function streamRequest(body, onText){
   const llama = apiKind === "llama";
   if(llama) body = {...body, stream:true};
@@ -2927,7 +2928,7 @@ async function streamRequest(body, onText){
       }
     }
   }catch(e){
-    if(e.name === "AbortError" && userStopped) return full;   // Stop : on garde ce qui est écrit
+    if(e.name === "AbortError" && (userStopped || garbleCut)) return full;   // Stop : on garde ce qui est écrit
     throw e;
   }
   return full;
@@ -2968,12 +2969,15 @@ async function generate(){
     for(let attempt = 0; attempt < 3 && !out.trim() && !userStopped; attempt++){
       if(attempt) setStatus("Réponse inutilisable, nouvel essai (" + (attempt + 1) + "/3)…");
       let raw = "";
+      abortCtrl = new AbortController(); garbleCut = false;
       if(cfg.stream && !streamUnsupported){
         const el = liveChunk(), box = $("story");
         streaming = true;
         try{
           raw = await streamRequest(body, full => {
             el.textContent = cleanOutput(full, stops, true);
+            // charabia dès les premières lignes : on coupe tout de suite au lieu d'attendre des minutes la fin
+            if(!garbleCut && full.length >= 60 && looksGarbled(full)){ garbleCut = true; abortCtrl.abort(); }
             if(box.scrollHeight - box.scrollTop - box.clientHeight < 160) box.scrollTop = box.scrollHeight;
           });
         }catch(e){
@@ -2987,7 +2991,7 @@ async function generate(){
       if(out.trim() && minorSexual(out)){ out = ""; blocked = true; guardNext = true; body.prompt = buildPrompt(); }
     }
     guardNext = false;
-    if(garbledOut && !blocked && !out.trim() && !userStopped) setStatus("Réponse illisible écartée (3 essais). Regarde le journal du moteur dans Moteur, ou essaie un autre modèle.", true);
+    if(garbledOut && !blocked && !out.trim() && !userStopped) setStatus("Réponse illisible écartée (3 essais). Le fichier du modèle est sans doute en cause : choisis-en un autre dans Moteur (par exemple la version Q5_K_M).", true);
     if(blocked && !out.trim() && !userStopped) setStatus("Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans. Choisis une autre action.", true);
     const last = lastReal();
     if(last && last.type !== "ai") out = out.replace(/^\n+/, "");
@@ -4871,7 +4875,7 @@ function renderSuggest(){
 const DL_CATALOG = {
   text: {label:"✍ Texte (le conteur)", repos:[
     {repo:"MaziyarPanahi/Llama-3.2-3B-Instruct-abliterated-GGUF", name:"Llama 3.2 3B non censuré", vram:3, note:"Petit et rapide, pour les PC modestes."},
-    {repo:"bartowski/Meta-Llama-3.1-8B-Instruct-abliterated-GGUF", name:"Llama 3.1 8B non censuré", vram:6, note:"Polyvalent et rapide. Correct en français."},
+    {repo:"mlabonne/Meta-Llama-3.1-8B-Instruct-abliterated-GGUF", name:"Llama 3.1 8B non censuré", vram:6, note:"Polyvalent et rapide. Correct en français."},
     {repo:"TheDrummer/Rocinante-12B-v1.1-GGUF", name:"Rocinante 12B", vram:10, note:"Basé sur Mistral Nemo, entraîné pour le récit et l'aventure, sans filtre."},
     {repo:"QuantFactory/Mistral-Nemo-Instruct-2407-abliterated-GGUF", name:"Mistral Nemo 12B non censuré", vram:10, note:"Très bon en français, grand contexte. Licence Apache 2.0."},
     {repo:"bartowski/huihui-ai_Mistral-Small-24B-Instruct-2501-abliterated-GGUF", name:"Mistral Small 24B non censuré", vram:16, note:"Haut de gamme si ta carte a beaucoup de mémoire."}

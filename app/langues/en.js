@@ -840,7 +840,7 @@ ET_LANGUES.en = {nom: "English", drap: "🇬🇧", t: {
   "Réglages avancés du moteur": "Advanced engine settings",
   "Régénérer la dernière réponse": "Regenerate the last reply",
   "Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans. Choisis une autre action.": "Answer blocked: nothing sexual with a character under 18. Choose another action.",
-  "Réponse illisible écartée (3 essais). Regarde le journal du moteur dans Moteur, ou essaie un autre modèle.": "Unreadable answer discarded (3 tries). Check the engine log in Engine, or try another model.",
+  "Réponse illisible écartée (3 essais). Le fichier du modèle est sans doute en cause : choisis-en un autre dans Moteur (par exemple la version Q5_K_M).": "Unreadable answer discarded (3 tries). The model file is probably at fault: pick another one in Engine (for example the Q5_K_M version).",
   "Réponse inutilisable, nouvel essai (": "Unusable answer, trying again (",
   "Réponse par défaut": "Default answer",
   "Résumé (affiché au choix du départ)": "Summary (shown when choosing the start)",

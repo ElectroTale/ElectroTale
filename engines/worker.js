@@ -126,9 +126,21 @@ async function runText() {
     } catch (e) { fail("pas de mémoire pour les tâches annexes, elles partageront celle de l'histoire"); }
     try { wrapper = L.resolveChatWrapper(model); } catch (e) { wrapper = null; }
     // petit contrôle avant de raconter : si le modèle ne sait même plus compter, les calculs de la carte graphique sont faux.
-    // Sur le processeur, il ne bloquait jamais et coûtait près d'une minute à chaque lancement : on le saute.
-    const check = onGpu ? await sanity(asideCompletion || completion) : { ok: true, got: [] };
-    if (!onGpu) log("contrôle de départ approximatif sur le processeur : sauté pour démarrer plus vite");
+    // Sur le processeur : seulement les trois petits essais, une seule fois par fichier (cfg.cpuChecked). Un fichier qui
+    // les rate écrit du charabia (vu le 30/10 avec un Q4_K_M) : on le dit au lieu de laisser le Conteur écrire n'importe quoi.
+    let check = { ok: true, got: [] };
+    if (onGpu) check = await sanity(asideCompletion || completion);
+    else if (!cfg.cpuChecked) {
+      log("contrôle du fichier sur le processeur (une seule fois)…");
+      check = await shortSanity(asideCompletion || completion);
+      if (check.ok) log("contrôle processeur réussi");
+      else {
+        loadErr = "fichier de modèle illisible";
+        fail("le modèle rate le contrôle sur le processeur (" + check.got.map(g => JSON.stringify(g)).join(", ") + ")");
+        setTimeout(() => process.exit(5), 300);
+        return;
+      }
+    }
     if (!check.ok && onGpu) {
       loadErr = "texte incohérent";
       fail("texte incohérent au contrôle de départ (" + check.got.map(g => JSON.stringify(g)).join(", ") + ")");
@@ -150,6 +162,17 @@ async function runText() {
     // un vrai récit est fait de lettres à plus de 80 % ; le charabia de chiffres et de ponctuation, à moins de 50 %
     const ns = t.replace(/\s/g, "");
     return ns.length >= 30 && (ns.match(/\p{L}/gu) || []).length < ns.length * 0.6;
+  }
+
+  async function shortSanity(comp) {
+    const tests = [["1, 2, 3, 4, 5, 6, 7, 8, 9, 10,", /\b11\b/], ["a, b, c, d, e, f, g, h,", /^\W*i\b/i], ["lundi, mardi, mercredi, jeudi,", /vendredi/i]];
+    const got = []; let ok = 0;
+    for (const [p, re] of tests) {
+      let t; try { t = await comp.generateCompletion(model.tokenize(p), { maxTokens: 6, temperature: 0 }); } catch (e) { t = "(erreur " + e.message + ")"; }
+      got.push(t.slice(0, 30));
+      if (re.test(t)) ok++;
+    }
+    return { ok: ok >= 2, got };
   }
 
   async function sanity(comp) {

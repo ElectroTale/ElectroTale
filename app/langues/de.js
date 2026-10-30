@@ -840,7 +840,7 @@ ET_LANGUES.de = {nom: "Deutsch", drap: "🇩🇪", t: {
   "Réglages avancés du moteur": "Erweiterte Engine-Einstellungen",
   "Régénérer la dernière réponse": "Letzte Antwort neu erzeugen",
   "Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans. Choisis une autre action.": "Antwort blockiert: nichts Sexuelles mit einer Figur unter 18. Wähle eine andere Aktion.",
-  "Réponse illisible écartée (3 essais). Regarde le journal du moteur dans Moteur, ou essaie un autre modèle.": "Unlesbare Antwort verworfen (3 Versuche). Sieh dir das Motorprotokoll unter Motor an oder versuche ein anderes Modell.",
+  "Réponse illisible écartée (3 essais). Le fichier du modèle est sans doute en cause : choisis-en un autre dans Moteur (par exemple la version Q5_K_M).": "Unlesbare Antwort verworfen (3 Versuche). Wahrscheinlich ist die Modelldatei schuld: wähle unter Engine eine andere (zum Beispiel die Q5_K_M-Version).",
   "Réponse inutilisable, nouvel essai (": "Unbrauchbare Antwort, neuer Versuch (",
   "Réponse par défaut": "Standardantwort",
   "Résumé (affiché au choix du départ)": "Zusammenfassung (bei der Wahl des Starts angezeigt)",

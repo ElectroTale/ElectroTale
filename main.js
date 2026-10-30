@@ -232,12 +232,15 @@ async function startIntegre(c) {
     const g = await detectGpu();
     if (g.vendor === "intel" && !/arc\S*\s+(pro\s+)?[ab]\d/i.test(g.name)) { gpu = "cpu"; log("> carte Intel intégrée : le texte passe par le processeur"); }
   }
-  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu, layers: c.layers, flash: c.flash, safe, verified, diagFile: path.join(userDir(), "diagnostic-texte.txt") }); }
+  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu, layers: c.layers, flash: c.flash, safe, verified, cpuChecked: (c.cpuChecked || []).includes(c.modelPath), diagFile: path.join(userDir(), "diagnostic-texte.txt") }); }
   catch (e) { proc = null; setStatus("error", "Impossible de lancer le moteur intégré : " + e.message); return { ok: false }; }
   wire(proc, c);
   // le long contrôle a réussi : on le retient pour ne plus le refaire avec ce modèle et ce réglage
   if (!verified) proc.stdout.on("data", d => {
-    if (/contrôle complet réussi|contrôle de départ approximatif/.test(d.toString())) { const c2 = loadCfg(); c2.textSafe = { key: textSafeKey(c), level: safe, ok: true }; saveCfg(c2); }
+    if (/contrôle complet réussi/.test(d.toString())) { const c2 = loadCfg(); c2.textSafe = { key: textSafeKey(c), level: safe, ok: true }; saveCfg(c2); }
+  });
+  proc.stdout.on("data", d => {
+    if (/contrôle processeur réussi/.test(d.toString())) { const c2 = loadCfg(); c2.cpuChecked = [...new Set([...(c2.cpuChecked || []), c.modelPath])].slice(-20); saveCfg(c2); }
   });
   return { ok: true };
 }
@@ -254,8 +257,34 @@ function textGarbled(c, code) {
     startIntegre(c2);
     return true;
   }
-  setStatus("error", "Le modèle écrit un texte incohérent même sans la carte graphique : le fichier .gguf est sans doute abîmé ou incomplet. Retélécharge-le ou choisis-en un autre.");
+  // même sur le processeur : c'est le fichier. On le note et on passe à un autre modèle de texte du dossier s'il y en a un.
+  const c2 = loadCfg();
+  c2.badText = [...new Set([...(c2.badText || []), c.modelPath])].slice(-20);
+  const other = otherTextModel(c2);
+  if (other) {
+    log("> " + path.basename(c.modelPath) + " écrit du charabia sur ce PC : passage à " + path.basename(other));
+    c2.modelPath = other; saveCfg(c2);
+    setStatus("starting", "Ce fichier de modèle écrit du charabia : passage à " + path.basename(other) + "…");
+    startIntegre(c2);
+    return true;
+  }
+  saveCfg(c2);
+  setStatus("error", "Ce fichier de modèle (" + path.basename(c.modelPath) + ") écrit du charabia sur ce PC, même sans la carte graphique. Télécharge une autre version (par exemple Q5_K_M) ou choisis un autre modèle.");
   return true;
+}
+// un autre modèle de texte déjà téléchargé (pas un modèle d'images ni de voix, pas un fichier déjà raté)
+function otherTextModel(c) {
+  const bad = new Set(c.badText || []), dirs = [...new Set([modelsDir(), path.dirname(c.modelPath || "")])].filter(Boolean);
+  for (const dir of dirs) {
+    let files = [];
+    try { files = fs.readdirSync(dir).filter(f => /\.gguf$/i.test(f)); } catch (e) { continue; }
+    const ok = files.map(f => path.join(dir, f)).filter(f => !bad.has(f) && f !== c.modelPath &&
+      /llama|mistral|nemo|qwen|gemma|rocinante|instruct|hermes|dolphin/i.test(path.basename(f)) &&
+      !/dreamshaper|stable-diffusion|sd[-_ ]?v?1|sdxl|flux|vae|lcm|kokoro|mmproj|lora/i.test(path.basename(f)));
+    ok.sort((a, b) => (/q5_k_m/i.test(b) - /q5_k_m/i.test(a)));
+    if (ok.length) return ok[0];
+  }
+  return "";
 }
 function wire(me, c) {
   {
@@ -772,7 +801,7 @@ const LAUNCH_CATALOG = {
   text: [
     { id: "llama32-3b", name: "Llama 3.2 3B", repo: "MaziyarPanahi/Llama-3.2-3B-Instruct-abliterated-GGUF", quants: ["Q5_K_M", "Q4_K_M", "Q6_K"], sizeGB: 2.3, needGB: 4,
       note: "Léger et rapide. Pour les petits PC ou sans carte graphique. Français correct." },
-    { id: "llama31-8b", name: "Llama 3.1 8B", repo: "bartowski/Meta-Llama-3.1-8B-Instruct-abliterated-GGUF", quants: ["Q4_K_M", "Q4_K_S", "Q5_K_M"], sizeGB: 4.9, needGB: 6,
+    { id: "llama31-8b", name: "Llama 3.1 8B", repo: "mlabonne/Meta-Llama-3.1-8B-Instruct-abliterated-GGUF", quants: ["Q5_K_M", "Q4_K_M", "Q6_K"], sizeGB: 5.7, needGB: 6,
       note: "Le bon équilibre : bon conteur, suit bien les règles du Conteur." },
     { id: "rocinante-12b", name: "Rocinante 12B", repo: "TheDrummer/Rocinante-12B-v1.1-GGUF", quants: ["Q4_K_M", "Q4_K_S", "Q5_K_M"], sizeGB: 7.5, needGB: 10,
       note: "Entraîné pour l'aventure et le jeu de rôle. Base Mistral : français naturel." },
@@ -865,9 +894,13 @@ function recommend(pc, cat) {
   r.voice = "kokoro-fr";
   return r;
 }
+// fichiers proposés par d'anciennes versions du lanceur qui écrivent du charabia : on les retélécharge depuis un autre dépôt
+// (Llama 3.1 8B de bartowski : texte incohérent chez Béryl, alors que le Q5_K_M de mlabonne écrit bien)
+const BAD_FILES = [/^Meta-Llama-3\.1-8B-Instruct-abliterated-Q\w+\.gguf$/];
+const badFile = p => BAD_FILES.some(re => re.test(path.basename(String(p))));
 function installedState(cat = catalogue()) {
   const c = loadCfg(), inst = c.installed || {}, out = {};
-  for (const kind of ["text", "sd"]) for (const it of cat[kind]) if (inst[it.id] && fs.existsSync(inst[it.id])) out[it.id] = inst[it.id];
+  for (const kind of ["text", "sd"]) for (const it of cat[kind]) if (inst[it.id] && fs.existsSync(inst[it.id]) && !badFile(inst[it.id])) out[it.id] = inst[it.id];
   if (c.kokoroDir && fs.existsSync(path.join(c.kokoroDir, "model.onnx"))) out["kokoro-fr"] = c.kokoroDir;
   return out;
 }

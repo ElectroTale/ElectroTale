@@ -840,7 +840,7 @@ ET_LANGUES.it = {nom: "Italiano", drap: "🇮🇹", t: {
   "Réglages avancés du moteur": "Impostazioni avanzate del motore",
   "Régénérer la dernière réponse": "Rigenera l'ultima risposta",
   "Réponse bloquée : rien de sexuel avec un personnage de moins de 18 ans. Choisis une autre action.": "Risposta bloccata: niente di sessuale con un personaggio sotto i 18 anni. Scegli un'altra azione.",
-  "Réponse illisible écartée (3 essais). Regarde le journal du moteur dans Moteur, ou essaie un autre modèle.": "Risposta illeggibile scartata (3 tentativi). Guarda il registro del motore in Motore o prova un altro modello.",
+  "Réponse illisible écartée (3 essais). Le fichier du modèle est sans doute en cause : choisis-en un autre dans Moteur (par exemple la version Q5_K_M).": "Risposta illeggibile scartata (3 tentativi). Probabilmente è colpa del file del modello: scegline un altro in Motore (per esempio la versione Q5_K_M).",
   "Réponse inutilisable, nouvel essai (": "Risposta inutilizzabile, nuovo tentativo (",
   "Réponse par défaut": "Risposta predefinita",
   "Résumé (affiché au choix du départ)": "Riassunto (mostrato alla scelta dell'inizio)",
