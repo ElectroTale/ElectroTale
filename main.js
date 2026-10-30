@@ -369,7 +369,7 @@ ipcMain.handle("dl:start", async (e, { repo, file, url, kind }) => {
 });
 ipcMain.handle("dl:cancel", () => { if (dlReq) { dlReq.destroy(new Error("Téléchargement annulé.")); } return true; });
 ipcMain.handle("dl:pickDir", async () => {
-  const r = await dialog.showOpenDialog(win, { title: "Dossier des modèles", properties: ["openDirectory", "createDirectory"] });
+  const r = await dialog.showOpenDialog(win, { title: T("Dossier des modèles"), properties: ["openDirectory", "createDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
   const c = loadCfg(); c.modelsDir = r.filePaths[0]; saveCfg(c); return c;
 });
@@ -408,8 +408,8 @@ function downloadCancelable(url, dest, onProgress, depth = 0) {
   });
 }
 ipcMain.handle("engine:pickExtra", async (e, kind) => {
-  const r = await dialog.showOpenDialog(win, { title: kind === "sd" ? "Modèle d'images" : "Modèle de voix", properties: ["openFile"],
-    filters: [{ name: "Modèles", extensions: ["gguf", "safetensors", "ckpt"] }] });
+  const r = await dialog.showOpenDialog(win, { title: T(kind === "sd" ? "Modèle d'images" : "Modèle de voix"), properties: ["openFile"],
+    filters: [{ name: T("Modèles"), extensions: ["gguf", "safetensors", "ckpt"] }] });
   if (r.canceled || !r.filePaths[0]) return null;
   applyDownloaded(r.filePaths[0], kind); return loadCfg();
 });
@@ -417,6 +417,18 @@ ipcMain.handle("engine:pickExtra", async (e, kind) => {
 /* ---------- stockage des aventures (fichiers) ---------- */
 const dataDir = () => path.join(userDir(), "donnees");
 const keyFile = k => path.join(dataDir(), String(k).replace(/[^\w.-]/g, "_") + ".json");
+// titres des fenêtres Windows dans la langue de l'interface (les textes de la page sont dans app/langues)
+let uiLang = "fr";
+const DLG_TR = {
+  en: {"Dossier des modèles": "Models folder", "Modèle d'images": "Image model", "Modèle de voix": "Voice model", "Modèles": "Models", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Choose the engine (llama-server.exe or koboldcpp.exe)", "Moteur": "Engine", "Choisir un modèle": "Choose a model", "Modèles GGUF": "GGUF models", "Enregistrer le livre": "Save the book"},
+  es: {"Dossier des modèles": "Carpeta de modelos", "Modèle d'images": "Modelo de imágenes", "Modèle de voix": "Modelo de voz", "Modèles": "Modelos", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Elegir el motor (llama-server.exe o koboldcpp.exe)", "Moteur": "Motor", "Choisir un modèle": "Elegir un modelo", "Modèles GGUF": "Modelos GGUF", "Enregistrer le livre": "Guardar el libro"},
+  it: {"Dossier des modèles": "Cartella dei modelli", "Modèle d'images": "Modello di immagini", "Modèle de voix": "Modello vocale", "Modèles": "Modelli", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Scegli il motore (llama-server.exe o koboldcpp.exe)", "Moteur": "Motore", "Choisir un modèle": "Scegli un modello", "Modèles GGUF": "Modelli GGUF", "Enregistrer le livre": "Salva il libro"},
+  de: {"Dossier des modèles": "Modellordner", "Modèle d'images": "Bildmodell", "Modèle de voix": "Stimmmodell", "Modèles": "Modelle", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Motor wählen (llama-server.exe oder koboldcpp.exe)", "Moteur": "Motor", "Choisir un modèle": "Modell wählen", "Modèles GGUF": "GGUF-Modelle", "Enregistrer le livre": "Buch speichern"},
+  pt: {"Dossier des modèles": "Pasta de modelos", "Modèle d'images": "Modelo de imagens", "Modèle de voix": "Modelo de voz", "Modèles": "Modelos", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Escolher o motor (llama-server.exe ou koboldcpp.exe)", "Moteur": "Motor", "Choisir un modèle": "Escolher um modelo", "Modèles GGUF": "Modelos GGUF", "Enregistrer le livre": "Salvar o livro"},
+};
+const T = s => (DLG_TR[uiLang] || {})[s] || s;
+ipcMain.on("ui:setLang", (e, code) => { if (typeof code === "string" && /^[a-z]{2}$/.test(code)) uiLang = code; });
+
 ipcMain.on("store:get", (e, k) => { try { e.returnValue = fs.readFileSync(keyFile(k), "utf8"); } catch (err) { e.returnValue = null; } });
 ipcMain.on("store:set", (e, k, v) => {
   try {
@@ -1103,8 +1115,8 @@ ipcMain.handle("engine:stop", () => { stopSd(); return stopEngine(); });
 ipcMain.handle("engine:restart", async () => { await stopSd(); await stopEngine(); startSd(); return startEngine(); });
 ipcMain.handle("engine:detectGpu", () => detectGpu());
 ipcMain.handle("engine:pickExe", async () => {
-  const r = await dialog.showOpenDialog(win, { title: "Choisir le moteur (llama-server.exe ou koboldcpp.exe)", properties: ["openFile"],
-    filters: process.platform === "win32" ? [{ name: "Moteur", extensions: ["exe"] }] : [] });
+  const r = await dialog.showOpenDialog(win, { title: T("Choisir le moteur (llama-server.exe ou koboldcpp.exe)"), properties: ["openFile"],
+    filters: process.platform === "win32" ? [{ name: T("Moteur"), extensions: ["exe"] }] : [] });
   if (r.canceled || !r.filePaths[0]) return null;
   const c = loadCfg(), f = r.filePaths[0];
   if (/llama-server/i.test(path.basename(f))) { c.llamaServer = f; c.engine = "llamacpp"; }
@@ -1113,9 +1125,9 @@ ipcMain.handle("engine:pickExe", async () => {
 });
 ipcMain.handle("engine:pickModel", async () => {
   const c = loadCfg();
-  const r = await dialog.showOpenDialog(win, { title: "Choisir un modèle", properties: ["openFile"],
+  const r = await dialog.showOpenDialog(win, { title: T("Choisir un modèle"), properties: ["openFile"],
     defaultPath: c.modelPath ? path.dirname(c.modelPath) : undefined,
-    filters: [{ name: "Modèles GGUF", extensions: ["gguf"] }] });
+    filters: [{ name: T("Modèles GGUF"), extensions: ["gguf"] }] });
   if (r.canceled || !r.filePaths[0]) return null;
   return setModel(r.filePaths[0]);
 });
@@ -1139,7 +1151,7 @@ ipcMain.handle("app:info", () => ({ version: app.getVersion(), licences: fs.exis
 ipcMain.handle("book:pdf", async (_e, html, name) => {
   if (typeof html !== "string" || html.length > 200 * 1024 * 1024) return { ok: false, error: "Contenu invalide" };
   const safe = String(name || "Grimoire").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80) || "Grimoire";
-  const r = await dialog.showSaveDialog(win, { title: "Enregistrer le livre", defaultPath: safe + ".pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] });
+  const r = await dialog.showSaveDialog(win, { title: T("Enregistrer le livre"), defaultPath: safe + ".pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
   const tmp = path.join(app.getPath("temp"), "electrotale-livre-" + crypto.randomBytes(6).toString("hex") + ".html");
   const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false, contextIsolation: true, nodeIntegration: false } });

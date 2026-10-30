@@ -1,58 +1,54 @@
 # ÉlectroTale
 
-*Le grimoire électronique.* Un jeu d'aventure textuelle pour Windows où une IA raconte ton histoire, dessine les scènes et les lit à voix haute. Tout tourne sur ton PC : pas de compte, pas d'abonnement, pas de censure.
+🌍 **English** · [Français](README.fr.md) · [Español](README.es.md) · [Italiano](README.it.md) · [Deutsch](README.de.md) · [Português](README.pt.md)
 
-> **Version bêta.** ÉlectroTale est imaginé et dirigé par Béryl, qui ne sait pas programmer. Tout le code a été écrit par Claude, l'IA d'Anthropic, à partir de ses idées et de ses retours. Des bugs sont possibles : ouvre une *issue* pour les signaler.
+*The electronic grimoire.* A text adventure game for Windows where an AI tells your story, draws the scenes and reads them aloud. Everything runs on your PC: no account, no subscription, no censorship.
 
-**Réservé aux 18 ans et plus.** Les modèles d'IA proposés ne sont pas censurés. Tout contenu sexuel impliquant des mineurs est bloqué, dans le texte comme dans les images.
+> **Beta.** ÉlectroTale is imagined and directed by Béryl, who doesn't code. All the code was written by Claude, Anthropic's AI, from Béryl's ideas and feedback. Bugs are possible: open an *issue* to report them.
 
-## Ce qu'il y a dedans
+**Adults only (18+).** The AI models offered are uncensored. Any sexual content involving minors is blocked, in text and in images.
 
-- Un lanceur qui analyse le PC (processeur, mémoire, carte graphique) et télécharge les modèles adaptés.
-- Le destin au d20, des combats et des épreuves, des cartes de tarot, un journal de quêtes et 31 hauts faits, une récompense quotidienne.
-- Des images générées en local (stable-diffusion.cpp) et une voix (Kokoro via sherpa-onnx).
-- Six langues d'histoire : français, anglais, espagnol, italien, allemand, portugais.
-- Un dossier `Documents\ElectroTale` pour modifier mondes, personnages, règles et modèles.
+## What's inside
 
-## Installer
+- The whole app in 6 languages: English, French, Spanish, Italian, German, Portuguese. Pick yours on the home screen (🌍); the story follows.
+- A launcher that checks your PC (processor, memory, graphics card) and downloads the models that fit.
+- Fate on a d20, fights and trials, tarot cards, a quest journal, 31 achievements and a daily reward.
+- Images generated locally (stable-diffusion.cpp) and a narrator voice (Kokoro through sherpa-onnx).
+- A `Documents\ElectroTale` folder to change worlds, characters, rules and models.
 
-Télécharge l'installateur dans les *Releases*. Si Windows affiche « Windows a protégé votre ordinateur », clique sur **Informations complémentaires** puis **Exécuter quand même**.
+## Install
 
-Configuration : Windows 10 ou 11 en 64 bits, 16 Go de mémoire conseillés, une carte graphique compatible Vulkan (une puce Intel ou AMD récente suffit, en plus lent).
+Download the installer from the *Releases*. If Windows shows “Windows protected your PC”, click **More info**, then **Run anyway**.
+
+Requirements: 64-bit Windows 10 or 11, 16 GB of RAM recommended, a Vulkan-compatible graphics card (a recent Intel or AMD chip works too, more slowly).
+
+## Translate ÉlectroTale
+
+Your language is missing, or a sentence sounds wrong? Each language is a single file in [`app/langues/`](app/langues). [TRANSLATING.md](TRANSLATING.md) explains how to fix a translation or add a new language, without any programming.
 
 ## Code signing policy
 
-Signature de code gratuite prévue plus tard avec [SignPath.io](https://about.signpath.io/) et [SignPath Foundation](https://signpath.org/). Pour l’instant, l’installateur n’est pas signé.
+Free code signing is planned later with [SignPath.io](https://about.signpath.io/) and the [SignPath Foundation](https://signpath.org/). For now, the installer is not signed.
 
-- Auteurs et relecteurs : [Béryl](https://github.com/ElectroTale) (comptes ElectroTale et Nojf-design). Le code est écrit par Claude (Anthropic) à la demande de Béryl, et chaque modification passe par ce dépôt.
-- Approbation des signatures : [Béryl](https://github.com/ElectroTale).
-- Les installateurs sont construits automatiquement par GitHub Actions à partir de ce dépôt (`.github/workflows/build.yml`).
+- Authors and reviewers: [Béryl](https://github.com/ElectroTale) (ElectroTale and Nojf-design accounts). The code is written by Claude (Anthropic) at Béryl's request, and every change goes through this repository.
+- Signing approval: [Béryl](https://github.com/ElectroTale).
+- Installers are built automatically by GitHub Actions from this repository (`.github/workflows/build.yml`).
 
-**Vie privée.** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. ÉlectroTale ne se connecte à internet que lorsque tu demandes de télécharger un modèle : il le récupère alors sur Hugging Face, soumis à [sa politique de confidentialité](https://huggingface.co/privacy). Tes histoires restent sur ton PC.
+**Privacy.** This program will not transfer any information to other networked systems unless specifically requested by the user or the person installing or operating it. ÉlectroTale only connects to the internet when you ask it to download a model: it then fetches it from Hugging Face, subject to [its privacy policy](https://huggingface.co/privacy). Your stories stay on your PC.
 
-## Construire depuis le code
+## Build from source
 
-Sous Linux, avec Node.js 20 et `nsis` :
+On Linux, with Node.js 20 and `nsis`:
 
 ```sh
 npm install
 ./build-win.sh
 ```
 
-Le script produit `ElectroTale-Installation.exe`. Pour lancer l'application en développement : `npm start`.
+The script produces `ElectroTale-Installation.exe`. To run the app in development: `npm start`.
 
 ## Licences
 
-Le code d'ÉlectroTale est sous licence **GPL v3 ou ultérieure** (voir `LICENSE`).
+ÉlectroTale's code is licensed under **GPL v3 or later** (see `LICENSE`).
 
-Les modèles d'IA ne sont pas inclus : le lanceur les télécharge depuis Hugging Face, et chacun garde sa propre licence (liste complète dans l'onglet *Licences & crédits* du jeu). **Built with Llama.** Llama 3.1 et 3.2 sont sous Llama Community License, Copyright © Meta Platforms, Inc.
-
----
-
-## English
-
-*ÉlectroTale* is a local, offline text adventure game for Windows: an AI narrates your story, illustrates scenes and reads them aloud. No account, no subscription, no filter. **Adults only (18+).**
-
-**Beta.** Designed and directed by Béryl, who doesn't code; all code was written by Claude, Anthropic's AI. Bug reports are welcome as issues.
-
-Build with Node.js 20 and `nsis` on Linux: `npm install && ./build-win.sh`. Code licensed under GPL-3.0-or-later. AI models are downloaded separately and keep their own licenses. Built with Llama.
+AI models are not included: the launcher downloads them from Hugging Face, and each one keeps its own licence (full list in the game's *Licences & credits* tab). **Built with Llama.** Llama 3.1 and 3.2 are under the Llama Community License, Copyright © Meta Platforms, Inc.

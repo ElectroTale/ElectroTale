@@ -4,6 +4,7 @@ const on = ch => cb => { const f = (e, d) => cb(d); ipcRenderer.on(ch, f); retur
 
 contextBridge.exposeInMainWorld("engine", {
   getConfig: () => ipcRenderer.invoke("engine:getConfig"),
+  setUiLang: code => ipcRenderer.send("ui:setLang", code),
   setConfig: patch => ipcRenderer.invoke("engine:setConfig", patch),
   status: () => ipcRenderer.invoke("engine:status"),
   start: () => ipcRenderer.invoke("engine:start"),

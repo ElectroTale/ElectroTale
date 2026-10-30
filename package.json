@@ -1,6 +1,6 @@
 {
   "name": "electrotale",
-  "version": "1.17.8",
+  "version": "1.18.0",
   "description": "Aventures textuelles locales avec l IA, moteur intégré",
   "main": "main.js",
   "scripts": {
