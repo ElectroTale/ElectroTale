@@ -90,6 +90,7 @@ figure.scene:hover .imgbtns{display:flex}
 .card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:10px 0;background:var(--panel2)}
 .card.active{border-color:#7fa36b}
 .hrow{display:flex;gap:6px;align-items:center}
+.hrow > .sp{flex:1}
 .card textarea{margin-top:6px;min-height:60px}
 .opts{display:flex;gap:14px;flex-wrap:wrap;font:12px system-ui,sans-serif;color:var(--muted);margin-top:6px;align-items:center}
 .opts label{display:flex;align-items:center;gap:5px;margin:0}
@@ -543,6 +544,40 @@ h3{border-bottom:none;margin-top:28px}
 .hm-char .ph{width:46px;height:58px;border-radius:8px;background:#0005 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
 .hm-char .t{font:600 15px var(--font);color:var(--text)}
 .hm-char .s{font-size:12px;color:var(--muted)}
+.hm-start{margin-top:26px;display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px}
+.hm-big{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:16px 18px;border-radius:14px;background:var(--panel);min-height:130px}
+.hm-big i{font-style:normal;font-size:30px;line-height:1}
+.hm-big b{font:600 18px var(--font);color:var(--accent)}
+.hm-big span{font-size:13px;color:var(--muted);line-height:1.4}
+.hm-big.main{border:1px solid var(--accent);background:linear-gradient(150deg,color-mix(in srgb,var(--accent) 22%,var(--panel)),var(--panel) 70%)}
+@media (max-width:760px){.hm-start{grid-template-columns:1fr}}
+#forgeModal{z-index:60}
+.fg-box{width:min(920px,100%)}
+.fg-steps{display:flex;gap:6px;margin:10px 0 14px;flex-wrap:wrap}
+.fg-steps span{font-size:12px;padding:3px 10px;border-radius:20px;border:1px solid var(--line);color:var(--muted)}
+.fg-steps span.on{background:var(--accent);color:#14100a;border-color:var(--accent)}
+.fg-steps span.done{color:var(--accent);border-color:var(--accent)}
+.fg-genres{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.fg-genres button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;padding:10px 12px;border-radius:12px;min-height:78px}
+.fg-genres button i{font-style:normal;font-size:24px}
+.fg-genres button b{font-size:14px}
+.fg-genres button span{font-size:11.5px;color:var(--muted)}
+.fg-genres button.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.fg-row{display:flex;gap:8px;align-items:center}
+.fg-row > input,.fg-row > textarea{flex:1}
+.fg-sec{margin-top:14px}
+.fg-item{display:grid;grid-template-columns:1fr auto;gap:6px;margin:8px 0;padding:8px 10px;border:1px solid var(--line);border-left:4px solid var(--tc,var(--accent));border-radius:8px;background:var(--panel2)}
+.fg-item input{font-weight:600}
+.fg-item textarea{grid-column:1 / -1}
+.fg-item .fg-acts{display:flex;gap:4px}
+.wdash{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-bottom:6px}
+.wd-row{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-left:4px solid var(--tc,var(--accent));border-radius:8px;background:var(--panel2);font-size:13.5px}
+.wd-row .n{font-weight:600;min-width:22px;text-align:center;color:var(--accent)}
+.wd-row .n.zero{color:var(--muted)}
+.wd-row .lb{flex:1}
+.wd-row button{padding:3px 8px;font-size:12px}
+.sm-ins{margin:10px 0 2px;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.sm-ins button{padding:2px 9px;font-size:12px}
 .hm-chars{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
 .hm-empty{color:var(--muted);font-size:13.5px;padding:10px 0}
 .hm-foot{margin-top:34px;display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
@@ -1162,12 +1197,15 @@ h3{border-bottom:none;margin-top:28px}
     <div class="hrow" style="flex-wrap:wrap;margin-top:12px"><button id="credOpen">📂 Ouvrir les textes complets des licences</button></div>
   </div>
     <div class="pane" id="p-world">
+      <h3 style="margin-top:0">Ton monde en un coup d'œil</h3>
+      <div class="wdash" id="wDash"></div>
       <div class="grid2">
         <div><label>Nom du monde</label><input id="wName" placeholder="Ex : Les Terres d'Ysmar"></div>
         <div><label>Genre / ambiance</label><input id="wGenre" placeholder="Ex : fantasy médiévale sombre, multi-peuples"></div>
       </div>
       <label>Description du monde (géographie, histoire, ce qui rend ce monde unique)</label>
       <textarea id="wDesc" rows="10" placeholder="Décris le monde en quelques paragraphes. C'est la base que l'IA utilise aussi pour générer les cartes."></textarea>
+      <div class="hrow" style="flex-wrap:wrap;margin-top:6px"><button id="wDescGen" class="small">✨ Écrire avec le Conteur</button><span id="wDescSt" class="hint"></span></div>
       <label class="inline"><input type="checkbox" id="wInject"> Envoyer la description du monde à l'IA à chaque tour</label>
       <p class="hint">Astuce : garde-la assez courte (5–15 lignes) si elle est envoyée à chaque tour, et mets les détails dans des cartes.</p>
 
@@ -1314,9 +1352,14 @@ h3{border-bottom:none;margin-top:28px}
       <div><label>Résumé (affiché au choix du départ)</label><input id="smDesc"></div>
     </div>
     <h3>Questions au joueur</h3>
-    <p class="hint">Clé = ce qu'on écrit dans les textes (<code>${Clé}</code>). Une question avec la clé <b>Nom</b> donne aussi le nom du perso. Type « Cartes » = choix parmi tes cartes d'un type (ex : Peuple).</p>
+    <p class="hint">Chaque question a un nom court (ex : Peuple). La réponse du joueur remplace ce nom dans les textes plus bas : utilise les boutons « Insérer » pour la placer. La question <b>Nom</b> donne aussi le nom du héros. « Cartes » = le joueur choisit parmi tes cartes du Codex d'un type (ex : Peuple).</p>
     <div id="smQuestions"></div>
-    <button id="smAddQ" class="small">+ Question</button>
+    <div class="hrow" style="flex-wrap:wrap">
+      <button id="smAddQ" class="small">+ Question libre</button>
+      <button id="smAddPeuple" class="small">+ Peuple (parmi tes cartes)</button>
+      <button id="smAddChoice" class="small">+ Choix entre plusieurs réponses</button>
+    </div>
+    <div class="sm-ins"><span class="hint">Insérer une réponse dans le texte :</span> <span id="smIns"></span></div>
     <label>Description du perso (va dans la fiche)</label>
     <textarea id="smSheet" rows="2" placeholder="Ex : ${Nom}, ${Peuple} de ${Âge} ans, ${Métier}."></textarea>
     <label>Mémoire de départ (remplace la mémoire, vide = garder l'actuelle)</label>
@@ -1331,6 +1374,22 @@ h3{border-bottom:none;margin-top:28px}
       <span class="sp"></span>
       <button id="smDel">🗑 Supprimer</button>
       <button id="smOk" class="primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- forge du monde -->
+<div id="forgeModal" class="modal" hidden>
+  <div class="mbox fg-box">
+    <div class="hrow"><h2 style="margin:0">✨ Forge du monde</h2><span class="sp"></span><button id="fgClose" class="tb" title="Fermer">✕</button></div>
+    <div class="fg-steps" id="fgSteps"><span>1. Genre</span><span>2. Idée</span><span>3. Règles</span><span>4. Création</span></div>
+    <div id="fgBody"></div>
+    <div class="mfoot">
+      <button id="fgBack">← Retour</button>
+      <span id="fgStatus" class="hint"></span>
+      <span class="sp"></span>
+      <button id="fgAtelier" hidden>🛠 Ouvrir dans l'Atelier</button>
+      <button id="fgNext" class="primary">Suivant →</button>
     </div>
   </div>
 </div>
@@ -1401,6 +1460,15 @@ h3{border-bottom:none;margin-top:28px}
     </div>
     <div id="hmJeu" class="hm-jeu"></div>
     <div id="hmCont"></div>
+    <div class="hm-start">
+      <button class="hm-big main" id="hmForge"><i>✨</i><b>Forger un nouveau monde</b><span>Choisis un genre et une idée : le Conteur crée les peuples, les lieux, les personnages et le début de l'histoire.</span></button>
+      <button class="hm-big" id="hmQuick"><i>⚡</i><b>Partie rapide</b><span>Un nom, un métier, et l'aventure commence tout de suite.</span></button>
+      <button class="hm-big" id="hmBlank"><i>✏</i><b>Page blanche</b><span>Un monde vide que tu construis toi-même dans l'Atelier.</span></button>
+    </div>
+    <div class="hm-sec" id="hmWorldsSec" hidden>
+      <div class="hm-sec-h"><h3>🌍 Mes mondes</h3><span class="hm-tag">Une nouvelle chronique dans un monde que tu as déjà créé</span></div>
+      <div class="hm-grid" id="hmWorlds"></div>
+    </div>
     <div class="hm-sec">
       <div class="hm-sec-h"><h3>📚 Mes chroniques</h3><span class="sp"></span>
         <span class="hm-filt" id="hmFilt"><button data-f="all">Toutes</button> <button data-f="cur">En cours</button> <button data-f="done">Terminées</button></span></div>
@@ -3190,6 +3258,7 @@ const switchOv = t => showTab(t);
 function fillWorld(){
   const w = state.world;
   $("wName").value = w.name; $("wGenre").value = w.genre; $("wDesc").value = w.desc; $("wInject").checked = !!w.inject;
+  renderWorldDash();
 }
 function renderChips(){
   const box = $("typeChips"); box.innerHTML = "";
@@ -3367,12 +3436,13 @@ function renderQuestions(){
     k.value = q.key; l.value = q.label; sel.value = q.kind || "text"; o.value = q.options || "";
     const ph = () => { o.placeholder = sel.value === "choice" ? "Options : a, b, c" : sel.value === "cards" ? "Type de carte (ex : Peuple)" : "Réponse par défaut"; };
     ph();
-    k.oninput = () => q.key = k.value.trim(); l.oninput = () => q.label = l.value;
+    k.oninput = () => { q.key = k.value.trim(); renderStartIns(); }; l.oninput = () => q.label = l.value;
     sel.onchange = () => { q.kind = sel.value; ph(); if(sel.value === "cards" && !o.value) { o.value = "Peuple"; q.options = "Peuple"; } };
     o.oninput = () => q.options = o.value;
     r.querySelector("button").onclick = () => { editStart.questions.splice(i, 1); renderQuestions(); };
     box.appendChild(r);
   });
+  renderStartIns();
 }
 function readStartForm(){
   Object.assign(editStart, {title:$("smTitle").value.trim(), desc:$("smDesc").value.trim(), sheet:$("smSheet").value,
@@ -3467,7 +3537,8 @@ function renderWizard(){
 function launchGame(){
   const s = wiz.start, a = { ...wiz.answers };
   if(state.story.length) newAdventure(true);
-  const fill = (t, x) => fillPh(t, x).replace(/\$\{[^}]+\}/g, "").replace(/ {2,}/g, " ");
+  // une réponse vide ne laisse ni « , , » ni « , . »
+  const fill = (t, x) => fillPh(t, x).replace(/\$\{[^}]+\}/g, "").replace(/ {2,}/g, " ").replace(/,\s*(?=[,.])/g, "").replace(/ +([,.])/g, "$1");
   const nameKey = Object.keys(a).find(k => k.toLowerCase() === "nom");
   if(nameKey && a[nameKey].trim()) state.cfg.charName = a[nameKey].trim();
   if(s.sheet && s.sheet.trim()) state.sheet.desc = fill(s.sheet, a);
@@ -3477,7 +3548,7 @@ function launchGame(){
   const op = fill(s.opening, a).trim();
   animateFrom = 0;
   if(op) state.story.push({type:"story", text:op});
-  if(op && langId() !== "fr") setTimeout(() => translateOpening(state.story.length - 1), 300);
+  if(op && langId() !== (s.lang || "fr")) setTimeout(() => translateOpening(state.story.length - 1), 300);
   redoStack = [];
   const m = curMeta(); if(m) m.name = s.title + (state.cfg.charName ? " — " + state.cfg.charName : "");
   save(); $("wizModal").hidden = true; closeMenu();
@@ -3854,11 +3925,11 @@ function bind(){
   $("wzBack").onclick = () => { wiz.step = 0; renderWizard(); };
   $("wzCancel").onclick = () => $("wizModal").hidden = true;
   $("wzGo").onclick = launchGame;
-  document.querySelectorAll(".modal").forEach(m => m.addEventListener("mousedown", e => { if(e.target === m) m.hidden = true; }));
+  document.querySelectorAll(".modal").forEach(m => m.addEventListener("mousedown", e => { if(e.target === m && m.id !== "forgeModal") m.hidden = true; }));
   document.addEventListener("keydown", e => {
     if(e.key !== "Escape") return;
     const open = [...document.querySelectorAll(".modal")].find(m => !m.hidden);
-    if(open) open.hidden = true; else if(menuOpen()) closeMenu();
+    if(open && open.id === "forgeModal") closeForge(); else if(open) open.hidden = true; else if(menuOpen()) closeMenu();
   });
   $("testApi").onclick = async () => {
     $("apiInfo").textContent = "…";
@@ -5413,7 +5484,8 @@ function homeData(){
     const lastImg = [...story].reverse().find(c => c.type === "img");
     const chars = cards.filter(c => c.type === "Personnage");
     return {m, cover: lastImg ? lastImg.src : (cards.find(c => c.img && c.type === "Lieu") || chars.find(c => c.img) || {}).img || "",
-      chapters: (a.chapters || []).length, chars, sheet, hero: ((a.cfg || {}).charName || m.char || "").trim(), world: (a.world || {}).name || m.world || ""};
+      chapters: (a.chapters || []).length, chars, sheet, hero: ((a.cfg || {}).charName || m.char || "").trim(), world: (a.world || {}).name || m.world || "",
+      genre: (a.world || {}).genre || "", cards: cards.length};
   }).sort((x, y) => (y.m.updated || 0) - (x.m.updated || 0));
 }
 function showHome(){
@@ -5451,10 +5523,6 @@ function renderHome(){
   // chroniques
   document.querySelectorAll("#hmFilt button").forEach(b => { b.className = "small" + (b.dataset.f === homeFilter ? " on" : ""); b.onclick = () => { homeFilter = b.dataset.f; renderHome(); }; });
   const grid = $("hmChron"); grid.innerHTML = "";
-  const nw = document.createElement("div"); nw.className = "hm-card new";
-  nw.innerHTML = `<div class="plus">＋</div><div>Nouvelle chronique</div><div class="hm-tag">Un nouveau monde, un nouveau héros</div>`;
-  nw.onclick = () => { hideHome(); newAdventure(false); setStatus("Nouvelle chronique créée"); if(state.starts.length) openWizard(); };
-  grid.appendChild(nw);
   const list = data.filter(d => homeFilter === "all" || (homeFilter === "done") === !!d.m.done);
   list.forEach(x => {
     const d = document.createElement("div"); d.className = "hm-card";
@@ -5472,7 +5540,8 @@ function renderHome(){
     d.onclick = () => homeOpen(x.m.id);
     grid.appendChild(d);
   });
-  if(!list.length && homeFilter !== "all"){ const e = document.createElement("div"); e.className = "hm-empty"; e.textContent = homeFilter === "done" ? "Aucune chronique terminée pour l'instant." : "Aucune chronique en cours."; grid.appendChild(e); }
+  if(!list.length){ const e = document.createElement("div"); e.className = "hm-empty"; e.textContent = homeFilter === "done" ? "Aucune chronique terminée pour l'instant." : homeFilter === "cur" ? "Aucune chronique en cours." : "Tes chroniques apparaîtront ici."; grid.appendChild(e); }
+  renderHomeWorlds(data);
   renderHomeFolder();
   // héros : un par nom, d'après sa chronique la plus récente
   const heroes = new Map();
@@ -5692,7 +5761,12 @@ const CONTEUR = {
   "image-scene": "Décris cette {quoi} pour un générateur d'images, EN ANGLAIS, en une seule ligne de mots-clés séparés par des virgules : sujet principal, apparence des personnages, lieu, ambiance, lumière. Pas de phrase, pas de nom propre, uniquement des mots-clés en anglais.",
   "image-souhait": "Traduis cette image pour un générateur d'images, EN ANGLAIS, en une seule ligne de mots-clés séparés par des virgules : sujet, apparence, lieu, ambiance, lumière. Garde fidèlement ce qui est demandé. Pas de phrase, pas de nom propre.",
   "absence": "{heros} s'est absenté {duree}. Raconte en 3 à 5 phrases ce que les autres personnages et le monde ont fait pendant ce temps : rumeurs, intrigues, déplacements, changements. Commence par « Pendant ton absence, ». En français, au passé composé, sans décrire les actions de {heros}.",
-  "oracle": "Présage : le destin a tiré « {carte} » — {sens}. Fais-le arriver naturellement dans les prochains paragraphes, sans nommer la carte."
+  "oracle": "Présage : le destin a tiré « {carte} » — {sens}. Fais-le arriver naturellement dans les prochains paragraphes, sans nommer la carte.",
+  "forge-nom": "Invente un nom original et évocateur pour ce monde. Réponds uniquement par le nom, sans guillemets ni explication.",
+  "forge-idee": "Propose une idée de départ originale pour ce monde, en une ou deux phrases, en français : ce qui le rend unique et le conflit qui le traverse. Réponds uniquement par l'idée.",
+  "forge-monde": "Décris ce monde en français, en deux ou trois paragraphes courts : géographie, histoire, ce qui le rend unique et les tensions du moment. Au présent, concret, sans titre ni liste.",
+  "forge-liste": "Invente {nombre} {quoi} pour ce monde, originaux, cohérents et différents des éléments existants. Une ligne par élément, au format : Nom — description en 2 ou 3 phrases, au présent, en français. Rien d'autre.",
+  "forge-roles": "Propose 6 rôles possibles pour le héros dans ce monde (métier ou place dans la société), de 1 à 3 mots chacun, séparés par des virgules, en français. Rien d'autre."
 };
 let THEME_CSS = {};
 let CONTENU = {actif:false, racine:"", mods:[], erreurs:[], aventures:[], personnages:[], n:{}};
@@ -5716,7 +5790,12 @@ const TXT_AIDE = {
   "image-scene": "Mots-clés en anglais pour dessiner une scène ou un portrait.\n{quoi} = « scène », « personnage »…",
   "image-souhait": "Traduction en mots-clés anglais d'une image que tu décris toi-même (🎨).",
   "absence": "« Pendant ton absence… » après 6 heures sans jouer.\n{heros} = ton héros, {duree} = « quelques heures », « un jour ou deux »…",
-  "oracle": "Présage de la carte de tarot tirée par l'Oracle (envoyé pendant 3 tours).\n{carte} = le nom de la carte (avec « renversée »), {sens} = son sens."
+  "oracle": "Présage de la carte de tarot tirée par l'Oracle (envoyé pendant 3 tours).\n{carte} = le nom de la carte (avec « renversée »), {sens} = son sens.",
+  "forge-nom": "Forge du monde : 🎲 à côté du nom du monde.",
+  "forge-idee": "Forge du monde : 🎲 à côté de l'idée du monde.",
+  "forge-monde": "Forge du monde (et « ✨ Écrire avec le Conteur » dans l'onglet Monde) : la description du monde.",
+  "forge-liste": "Forge du monde : plusieurs éléments d'un coup.\n{nombre} = combien, {quoi} = « peuples ou espèces », « lieux importants »…\nGarde le format « Nom — description » : c'est ainsi que le jeu sépare les éléments.",
+  "forge-roles": "Forge du monde : les rôles proposés au héros au début de la partie (séparés par des virgules)."
 };
 const aideTxt = nom => TXT_AIDE[nom] ? TXT_AIDE[nom].split("\n").map(l => "# " + l).join("\n") + "\n# Les lignes qui commencent par # sont des commentaires : l'IA ne les voit pas.\n" : "";
 const CARD_SUJETS = {Personnage:"ce personnage (apparence, rôle, caractère, ce qu'il veut)", Lieu:"ce lieu (aspect, ambiance, qui y vit, ce qu'on y trouve)",
@@ -6694,7 +6773,356 @@ function initJeu(){
   window.addEventListener("focus", () => { if(checkDaily()) renderHomeJeu(); });
 }
 
-load(); appliquerApresChargement(); absenceSince = (curMeta() || {}).updated || 0; normJeu(); initLangue(); bind(); fillAll(); setMode(curMode().id); initTalk(); initExtras(); initHome(); initDossier(); initJeu(); showHome(); initEngine();
+/* ================= 1.20 : forge du monde ================= */
+// Un assistant en 4 étapes : genre → idée → règles → le Conteur crée le monde (description, Codex, départ).
+const FORGE_GENRES = [
+  {id:"fantasy",   ic:"🏰", nom:"Fantasy médiévale",    sous:"Royaumes, magie, dragons",          genre:"fantasy médiévale"},
+  {id:"dark",      ic:"🌑", nom:"Dark fantasy",         sous:"Monde cruel, magie qui se paie",    genre:"dark fantasy, sombre et cruelle"},
+  {id:"scifi",     ic:"🚀", nom:"Science-fiction",      sous:"Vaisseaux, planètes, IA",           genre:"science-fiction spatiale"},
+  {id:"cyber",     ic:"🌆", nom:"Cyberpunk",            sous:"Mégacorpos, implants, néons",       genre:"cyberpunk"},
+  {id:"postapo",   ic:"☢",  nom:"Post-apocalyptique",   sous:"Ruines, survie, clans",             genre:"post-apocalyptique, survie"},
+  {id:"horreur",   ic:"🕯", nom:"Horreur",              sous:"Ombres, malédictions, folie",       genre:"horreur gothique et surnaturelle"},
+  {id:"pirates",   ic:"🏴", nom:"Pirates",              sous:"Mers, trésors, abordages",          genre:"aventure de pirates, âge de la voile"},
+  {id:"steam",     ic:"⚙",  nom:"Steampunk",            sous:"Vapeur, inventions, empires",       genre:"steampunk victorien"},
+  {id:"mytho",     ic:"🏛", nom:"Mythologie",           sous:"Dieux, héros, monstres antiques",   genre:"mythologie antique"},
+  {id:"noir",      ic:"🕵", nom:"Polar noir",           sous:"Crimes, enquêtes, corruption",      genre:"polar noir, années 1940"},
+  {id:"moderne",   ic:"🏙", nom:"Contemporain",         sous:"Notre monde, avec un secret",       genre:"monde contemporain avec un secret surnaturel"},
+  {id:"libre",     ic:"✏",  nom:"Autre",                sous:"Décris ton propre genre",           genre:""}
+];
+const FORGE_TONS = ["Épique", "Sombre", "Mystérieux", "Humour", "Horreur", "Romance", "Intrigues politiques", "Exploration", "Survie", "Mature (pour adultes)"];
+const FORGE_TAILLES = [
+  {id:"petit", nom:"Petit", sous:"5 entrées, le plus rapide", types:{Lieu:2, Personnage:2, Faction:1}},
+  {id:"moyen", nom:"Moyen", sous:"10 entrées", types:{Peuple:2, Lieu:3, Faction:2, Personnage:3}},
+  {id:"riche", nom:"Riche", sous:"16 entrées, plus long à créer", types:{Peuple:3, Lieu:4, Faction:2, Personnage:4, Créature:2, Religion:1}}
+];
+const FORGE_QUOI = {Peuple:"peuples ou espèces", Lieu:"lieux importants (villes, régions, endroits marquants)", Faction:"factions (royaumes, guildes, clans, sectes…)",
+  Personnage:"personnages non joueurs marquants (alliés, rivaux, figures de pouvoir)", Créature:"créatures ou monstres", Religion:"religions ou croyances",
+  Objet:"objets légendaires ou importants", "Événement":"événements passés qui ont marqué le monde", Lore:"éléments marquants de ce monde"};
+const FORGE_DIFF = [{dc:10, nom:"Facile"}, {dc:12, nom:"Normal"}, {dc:15, nom:"Difficile"}];
+let fg = null;
+function forgeNew(){
+  return {step:0, genre:null, genreLibre:"", tons:[], name:"", idea:"", taille:"moyen", person:state.cfg.person || "3", lang:langId(),
+    dc:12, useHp:true, hp:20, gold:10, desc:"", cards:[], roles:"", opening:"", made:false, busy:false, stop:false};
+}
+function openForge(){
+  if(busy || (fg && fg.busy)) return alert("Attends que le Conteur ait fini d'écrire.");
+  fg = forgeNew();
+  $("forgeModal").hidden = false; renderForge();
+}
+function closeForge(){
+  if(fg && fg.made && !confirm("Fermer la Forge ? Le monde créé sera perdu.")) return;
+  if(fg) fg.stop = true;
+  $("forgeModal").hidden = true;
+}
+const fgGenreTxt = () => !fg.genre ? "" : fg.genre.id === "libre" ? fg.genreLibre.trim() : fg.genre.genre;
+function fgHead(withCards){
+  const g = fgGenreTxt(), t = fg.tons.join(", ");
+  let s = SAFE_RULE + "\n" + (langRule() ? langRule() + "\n" : "") +
+    `[Monde : ${fg.name.trim() || "sans nom"}${g ? " — " + g : ""}${t ? " — ton : " + t : ""}]\n` + (fg.desc.trim() || fg.idea.trim());
+  if(withCards && fg.cards.length) s += "\n\nÉléments existants : " + fg.cards.map(c => `${c.title} (${c.type})`).join(", ");
+  return s.slice(0, 3500);
+}
+// « Nom — description » (une ligne par élément), en tolérant numéros, puces et gras
+function fgParseList(out){
+  const res = [];
+  for(let l of out.split("\n")){
+    l = l.replace(/^\s*(?:\d+\s*[.)-]|[-*•·])\s*/, "").replace(/\*\*/g, "").trim();
+    const m = l.match(/^([^—–:\n]{2,60}?)\s*(?:—|–|:| - )\s*(.{10,})$/);
+    if(!m) continue;
+    const title = m[1].replace(/^(nom|name)\s*:?\s*/i, "").replace(/["«»“”]/g, "").trim();
+    if(title && !/^(voici|here)/i.test(title)) res.push({title, content:m[2].trim()});
+  }
+  return res;
+}
+function fgCard(type, title, content){
+  const first = title.split(/[\s']+/)[0];
+  const keys = first.length >= 5 && first !== title ? title + ", " + first : title;
+  return normCard({type, title, keys, content, notes:""});
+}
+async function fgList(type, n){
+  const p = fgHead(true) + "\n\n" + consigne("forge-liste", {nombre:String(n), quoi:FORGE_QUOI[type] || FORGE_QUOI.Lore}) + "\n";
+  const out = await genText(p, 40 + n * 110, ["###", "\n\n\n\n"], "1. ");
+  return fgParseList("1. " + out).slice(0, n).map(x => fgCard(type, x.title, x.content));
+}
+async function fgDesc(){ return await genText(fgHead(false) + "\n\n" + consigne("forge-monde") + "\n", 420, ["###", "\n\n\n\n"]); }
+async function fgRoles(){
+  const out = await genText(fgHead(true) + "\n\n" + consigne("forge-roles") + "\n", 80, ["###", "\n\n"]);
+  return out.split(/[,\n]/).map(x => x.replace(/^\s*(?:\d+[.)]|[-*•])\s*/, "").replace(/[.*]+$/, "").trim()).filter(x => x && x.length < 40).slice(0, 8).join(", ");
+}
+function fgQuestions(){
+  const q = [{key:"Nom", label:"Comment s'appelle ton personnage ?", kind:"text", options:""}];
+  if(fg.cards.some(c => c.type === "Peuple")) q.push({key:"Peuple", label:"De quel peuple est ton personnage ?", kind:"cards", options:"Peuple"});
+  q.push({key:"Rôle", label:"Quel est son rôle dans ce monde ?", kind:fg.roles.trim() ? "choice" : "text", options:fg.roles.trim()});
+  return q;
+}
+async function fgOpening(){
+  const persp = {3:"à la troisième personne", 2:"à la deuxième personne (tu)", 1:"à la première personne (je)"}[fg.person];
+  const keys = fgQuestions().map(q => "${" + q.key + "}").join(", ");
+  const p = fgHead(true) + `\n\n### Scénario : début d'aventure\n` + consigne("ouverture", {perspective:persp}) + " " +
+    `Utilise exactement ces marqueurs pour le héros, sans les remplacer : ${keys}. \nTexte d'ouverture :\n`;
+  return await genText(p, 350, ["###", "\n\n\n\n"]);
+}
+async function fgRun(job, label){
+  fg.busy = true; renderForgeFoot();
+  $("fgStatus").textContent = "Le Conteur écrit : " + label + "…";
+  const keep = state.cfg.storyLang; state.cfg.storyLang = fg.lang;   // le Conteur écrit dans la langue choisie à l'étape 3
+  try{ await job(); $("fgStatus").textContent = ""; return true; }
+  catch(e){ $("fgStatus").textContent = "✖ Le Conteur n'est pas joignable : lance un modèle (⚙ Lanceur et modèles), ou continue sans lui."; return false; }
+  finally{ state.cfg.storyLang = keep; fg.busy = false; if(!$("forgeModal").hidden) renderForgeFoot(); }
+}
+async function forgeMake(){
+  fg.made = true; fg.stop = false;
+  const steps = [["la description du monde", async () => { fg.desc = (await fgDesc()) || fg.idea; }]];
+  const T = (FORGE_TAILLES.find(t => t.id === fg.taille) || FORGE_TAILLES[1]).types;
+  for(const [type, n] of Object.entries(T)) steps.push([FORGE_QUOI[type].split(" (")[0], async () => { fg.cards = fg.cards.concat(await fgList(type, n)); }]);
+  steps.push(["les rôles du héros", async () => { fg.roles = await fgRoles(); }]);
+  steps.push(["le début de l'histoire", async () => { fg.opening = await fgOpening(); }]);
+  for(const [label, job] of steps){
+    if(fg.stop || $("forgeModal").hidden) return;
+    const ok = await fgRun(job, label);
+    renderForge();
+    if(!ok){ if(!fg.desc.trim()) fg.desc = fg.idea; renderForge(); return; }
+  }
+  $("fgStatus").textContent = "✓ Ton monde est prêt. Relis, change ce que tu veux, puis joue.";
+}
+function forgeApply(){
+  newAdventure(false);
+  const tr = t => window.I18N ? I18N.tr(t) : t;   // nom par défaut et genre dans la langue de l'interface
+  const name = fg.name.trim() || tr("Nouveau monde");
+  const genre = fg.genre.id === "libre" ? fg.genreLibre.trim() : tr(fg.genre.nom);
+  state.world = {...state.world, name, genre:[genre, ...fg.tons.map(tr)].filter(Boolean).join(", "), desc:fg.desc.trim() || fg.idea.trim(), inject:true};
+  state.worldinfo = fg.cards.filter(c => c.title.trim()).map(normCard);
+  const qs = fgQuestions();
+  state.starts = [{id:"start-" + uid(), title:name, desc:fg.idea.trim(), questions:qs,
+    sheet:qs.map(q => "${" + q.key + "}").join(", ") + ".", memory:"", an:fg.tons.length ? "[Ton de l'histoire : " + fg.tons.join(", ").toLowerCase() + "]" : "",
+    opening:fg.opening.trim(), lang:fg.lang}];
+  state.cfg.person = fg.person;
+  Object.assign(state.sheet, {dc:fg.dc, useHp:fg.useHp, hpMax:fg.hp, hp:fg.hp, gold:fg.gold});
+  const m = curMeta(); if(m){ m.name = "Chronique de " + name; m.world = name; }
+  setStoryLang(fg.lang);
+  fg.made = false;
+  saveNow(); fillAll(); fillAdvName();
+}
+function renderForgeFoot(){
+  const last = fg.step === 3;
+  $("fgBack").hidden = fg.step === 0;
+  $("fgBack").disabled = $("fgNext").disabled = $("fgAtelier").disabled = fg.busy;
+  $("fgAtelier").hidden = !last;
+  $("fgNext").textContent = last ? "▶ Jouer dans ce monde" : fg.step === 2 ? "✨ Créer le monde" : "Suivant →";
+  if(fg.step === 0) $("fgNext").disabled = !fg.genre || (fg.genre.id === "libre" && !fg.genreLibre.trim());
+  document.querySelectorAll("#fgBody button").forEach(b => { if(b.dataset.ai) b.disabled = fg.busy; });
+}
+function fgEl(html){ const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstChild; }
+function fgChips(list, isOn, onPick){
+  const row = document.createElement("div"); row.className = "opts2";
+  list.forEach(o => { const b = document.createElement("button"); b.append(o.nom || o); if(o.dc) b.append(" (" + o.dc + ")"); b.classList.toggle("on", isOn(o));
+    if(o.sous) b.title = o.sous; b.onclick = () => { onPick(o); renderForge(); }; row.appendChild(b); });
+  return row;
+}
+function fgQ(label, child, hint, ic){
+  const box = document.createElement("div"); box.className = "wizq";
+  const l = document.createElement("label"); if(ic) l.append(ic + " "); l.append(label); box.appendChild(l);
+  if(child) box.appendChild(child);
+  if(hint){ const h = document.createElement("p"); h.className = "hint"; h.textContent = hint; box.appendChild(h); }
+  return box;
+}
+function renderForge(){
+  const body = $("fgBody"), y = $("forgeModal").scrollTop; body.innerHTML = "";
+  document.querySelectorAll("#fgSteps span").forEach((s, i) => { s.className = i === fg.step ? "on" : i < fg.step ? "done" : ""; });
+  if(fg.step === 0){
+    const g = document.createElement("div"); g.className = "fg-genres";
+    FORGE_GENRES.forEach(x => {
+      const b = fgEl(`<button><i></i><b></b><span></span></button>`);
+      b.querySelector("i").textContent = x.ic; b.querySelector("b").textContent = x.nom; b.querySelector("span").textContent = x.sous;
+      b.classList.toggle("on", fg.genre === x);
+      b.onclick = () => { fg.genre = x; renderForge(); if(x.id === "libre") setTimeout(() => $("fgGenreLibre") && $("fgGenreLibre").focus(), 0); };
+      g.appendChild(b);
+    });
+    body.appendChild(fgQ("Quel genre d'histoire ?", g));
+    if(fg.genre && fg.genre.id === "libre"){
+      const i = fgEl(`<input id="fgGenreLibre" placeholder="Ex : western avec des esprits, conte de fées cruel, Rome antique…">`);
+      i.value = fg.genreLibre; i.oninput = () => { fg.genreLibre = i.value; renderForgeFoot(); };
+      body.appendChild(fgQ("Ton genre", i));
+    }
+    body.appendChild(fgQ("Quelle ambiance ? (plusieurs choix possibles)", fgChips(FORGE_TONS, t => fg.tons.includes(t),
+      t => { fg.tons = fg.tons.includes(t) ? fg.tons.filter(x => x !== t) : [...fg.tons, t]; })));
+  }
+  if(fg.step === 1){
+    const nm = fgEl(`<div class="fg-row"><input placeholder="Ex : Les Terres d'Ysmar"><button data-ai="1" title="Le Conteur propose un nom">🎲</button></div>`);
+    const ni = nm.querySelector("input"); ni.value = fg.name; ni.oninput = () => fg.name = ni.value;
+    nm.querySelector("button").onclick = () => fgRun(async () => { fg.name = (await genText(fgHead(false) + "\n\n" + consigne("forge-nom") + "\n", 24, ["\n", "###"])).replace(/["«»“”*.]/g, "").trim(); renderForge(); }, "un nom");
+    body.appendChild(fgQ("Nom du monde", nm, "Laisse vide si tu ne sais pas encore : 🎲 demande au Conteur."));
+    const id = fgEl(`<div class="fg-row"><textarea rows="3" placeholder="Ex : Une cité bâtie sur le dos d'une tortue géante qui commence à mourir."></textarea><button data-ai="1" title="Le Conteur propose une idée">🎲</button></div>`);
+    const ii = id.querySelector("textarea"); ii.value = fg.idea; ii.oninput = () => fg.idea = ii.value;
+    id.querySelector("button").onclick = () => fgRun(async () => { fg.idea = await genText(fgHead(false) + "\n\n" + consigne("forge-idee") + "\n", 120, ["\n\n", "###"]); renderForge(); }, "une idée");
+    body.appendChild(fgQ("Ton idée en une ou deux phrases", id, "Ce qui rend ton monde unique, le conflit du moment… Tu peux aussi écrire plusieurs paragraphes : le Conteur s'en servira."));
+    const tl = document.createElement("div"); tl.className = "opts2";
+    FORGE_TAILLES.forEach(t => { const b = fgEl(`<button></button>`); b.append(t.nom, " · ", t.sous); b.classList.toggle("on", fg.taille === t.id); b.onclick = () => { fg.taille = t.id; renderForge(); }; tl.appendChild(b); });
+    body.appendChild(fgQ("Taille du monde", tl, "Tu pourras toujours ajouter des peuples, des lieux ou des personnages plus tard, dans l'Atelier."));
+  }
+  if(fg.step === 2){
+    body.appendChild(fgQ("Point de vue du récit", fgChips([{v:"3", nom:"Il / Elle (3e personne)"}, {v:"2", nom:"Tu (2e personne)"}, {v:"1", nom:"Je (1re personne)"}],
+      o => o.v === fg.person, o => fg.person = o.v)));
+    body.appendChild(fgQ("🌍 Langue de l'histoire", fgChips(Object.entries(LANGS).map(([v, L]) => ({v, nom:L.drap + " " + L.natif})), o => o.v === fg.lang, o => fg.lang = o.v)));
+    body.appendChild(fgQ("🎲 Difficulté des jets de d20", fgChips(FORGE_DIFF, o => o.dc === fg.dc, o => fg.dc = o.dc),
+      "Le nombre à atteindre au d20 pour réussir une action risquée."));
+    const hp = fgEl(`<div class="fg-row"><label class="inline"><input type="checkbox"> Le héros a des points de vie</label><input type="number" min="1" max="999" style="max-width:90px"></div>`);
+    const [hc, hn] = hp.querySelectorAll("input"); hc.checked = fg.useHp; hn.value = fg.hp; hn.disabled = !fg.useHp;
+    hc.onchange = () => { fg.useHp = hc.checked; hn.disabled = !hc.checked; }; hn.oninput = () => fg.hp = Math.max(1, parseInt(hn.value) || 20);
+    body.appendChild(fgQ("❤ Points de vie", hp));
+    const gd = fgEl(`<input type="number" min="0" max="99999" style="max-width:120px">`); gd.value = fg.gold; gd.oninput = () => fg.gold = Math.max(0, parseInt(gd.value) || 0);
+    body.appendChild(fgQ("🪙 Or de départ", gd));
+    const p = document.createElement("p"); p.className = "hint";
+    p.textContent = "Le Conteur va maintenant créer la description, les entrées du Codex et le début de l'histoire. Selon ton PC, cela prend de une à quelques minutes.";
+    body.appendChild(p);
+  }
+  if(fg.step === 3) renderForgeResult(body);
+  $("forgeModal").scrollTop = y;
+  renderForgeFoot();
+}
+function renderForgeResult(body){
+  const d = fgEl(`<div class="fg-row"><textarea rows="7"></textarea><button data-ai="1" title="Réécrire">🔄</button></div>`);
+  const dt = d.querySelector("textarea"); dt.value = fg.desc; dt.oninput = () => fg.desc = dt.value;
+  d.querySelector("button").onclick = () => fgRun(async () => { fg.desc = await fgDesc(); renderForge(); }, "la description du monde");
+  body.appendChild(fgQ(fg.name.trim() || "Nouveau monde", d, "", "📝"));
+  const types = [...new Set([...Object.keys((FORGE_TAILLES.find(t => t.id === fg.taille) || FORGE_TAILLES[1]).types), ...fg.cards.map(c => c.type)])];
+  types.forEach(type => {
+    const sec = document.createElement("div"); sec.className = "fg-sec";
+    const h = fgEl(`<div class="hrow"><label style="margin:0"></label><span class="sp"></span><button class="small" data-ai="1">✨ Un de plus</button></div>`);
+    h.querySelector("label").append(typeOf(type).icon + " ", type);
+    h.querySelector("button").onclick = () => fgRun(async () => { fg.cards = fg.cards.concat(await fgList(type, 1)); renderForge(); }, FORGE_QUOI[type].split(" (")[0]);
+    sec.appendChild(h);
+    fg.cards.filter(c => c.type === type).forEach(c => {
+      const it = fgEl(`<div class="fg-item"><input><span class="fg-acts"><button class="small" data-ai="1" title="Réécrire">🔄</button><button class="small" title="Supprimer">🗑</button></span><textarea rows="3"></textarea></div>`);
+      it.style.setProperty("--tc", typeOf(type).color);
+      const [ti] = it.querySelectorAll("input"), ta = it.querySelector("textarea"), [rb, db] = it.querySelectorAll("button");
+      ti.value = c.title; ta.value = c.content;
+      ti.oninput = () => { c.title = ti.value; c.keys = ti.value; }; ta.oninput = () => c.content = ta.value;
+      db.onclick = () => { fg.cards = fg.cards.filter(x => x !== c); renderForge(); };
+      rb.onclick = () => fgRun(async () => {
+        const others = fg.cards; fg.cards = fg.cards.filter(x => x !== c);
+        const [n] = await fgList(type, 1); fg.cards = others;
+        if(n) Object.assign(c, {title:n.title, keys:n.keys, content:n.content});
+        renderForge();
+      }, FORGE_QUOI[type].split(" (")[0]);
+      sec.appendChild(it);
+    });
+    if(!fg.cards.some(c => c.type === type)){ const e = document.createElement("p"); e.className = "hint"; e.textContent = fg.busy ? "…" : "Aucune entrée pour l'instant."; sec.appendChild(e); }
+    body.appendChild(sec);
+  });
+  const r = fgEl(`<div class="fg-row"><input placeholder="Ex : mercenaire, voleuse, prêtre, marchand"><button data-ai="1" title="Réécrire">🔄</button></div>`);
+  const ri = r.querySelector("input"); ri.value = fg.roles; ri.oninput = () => fg.roles = ri.value;
+  r.querySelector("button").onclick = () => fgRun(async () => { fg.roles = await fgRoles(); renderForge(); }, "les rôles du héros");
+  body.appendChild(fgQ("🚩 Rôles proposés au héros (séparés par des virgules)", r));
+  const o = fgEl(`<div class="fg-row"><textarea rows="6"></textarea><button data-ai="1" title="Réécrire">🔄</button></div>`);
+  const ot = o.querySelector("textarea"); ot.value = fg.opening; ot.oninput = () => fg.opening = ot.value;
+  o.querySelector("button").onclick = () => fgRun(async () => { fg.opening = await fgOpening(); renderForge(); }, "le début de l'histoire");
+  body.appendChild(fgQ("📜 Début de l'histoire", o, "${Nom}, ${Peuple} et ${Rôle} seront remplacés par les réponses du joueur. Laisse vide pour que le Conteur ouvre l'histoire lui-même."));
+}
+function forgeNext(){
+  if(fg.busy) return;
+  if(fg.step < 2){ fg.step++; renderForge(); return; }
+  if(fg.step === 2){ fg.step = 3; renderForge(); if(!fg.made) forgeMake(); return; }
+  forgeApply(); $("forgeModal").hidden = true; hideHome(); openWizard();
+}
+function initForge(){
+  $("fgClose").onclick = closeForge;
+  $("fgBack").onclick = () => { if(!fg.busy && fg.step > 0){ fg.step--; renderForge(); } };
+  $("fgNext").onclick = forgeNext;
+  $("fgAtelier").onclick = () => { if(fg.busy) return; forgeApply(); $("forgeModal").hidden = true; hideHome(); openAtelier("world"); };
+  $("hmForge").onclick = openForge;
+  $("hmQuick").onclick = () => { hideHome(); newAdventure(false); setStatus("Nouvelle chronique créée"); if(state.starts.length) openWizard(); };
+  $("hmBlank").onclick = () => { hideHome(); newAdventure(false); setStatus("Nouvelle chronique créée"); openAtelier("world"); };
+  $("wDescGen").onclick = worldDescGen;
+}
+
+/* ---- Atelier : tableau de bord du monde ---- */
+const WD_TYPES = ["Peuple", "Lieu", "Faction", "Personnage", "Créature", "Religion", "Objet", "Événement"];
+function renderWorldDash(){
+  const box = $("wDash"); if(!box) return; box.innerHTML = "";
+  const row = (ic, label, n, color, btns) => {
+    const r = fgEl(`<div class="wd-row"><span class="n"></span><span class="lb"></span></div>`);
+    r.style.setProperty("--tc", color);
+    r.querySelector(".n").textContent = typeof n === "number" ? n : n ? "✓" : "○";
+    r.querySelector(".n").classList.toggle("zero", !n);
+    r.querySelector(".lb").append(ic + " ", label);
+    btns.forEach(([t, title, f]) => { const b = document.createElement("button"); b.className = "small"; b.textContent = t; b.title = title; b.onclick = f; r.appendChild(b); });
+    box.appendChild(r);
+  };
+  const w = state.world;
+  row("📝", "Description", !!w.desc.trim(), "var(--accent)", [["✨", "Écrire avec le Conteur", worldDescGen]]);
+  WD_TYPES.forEach(t => {
+    const n = state.worldinfo.filter(c => c.type === t).length;
+    row(typeOf(t).icon, t, n, typeOf(t).color, [
+      ["✨", "Le Conteur invente une entrée de ce type", () => { cardFilter = t; showTab("cards"); openCard(null, t); genCard(); }],
+      ["Voir", "Voir dans le Codex", () => { cardFilter = t; showTab("cards"); }]]);
+  });
+  row("🚩", "Départs", state.starts.length, "#c9973f", [["Voir", "Les débuts de partie proposés", () => showTab("starts")]]);
+  row("🗺", "Carte du monde", !!(w.map && w.map.img), "#7fa3c9", [["Voir", "Ta carte et tes lieux", () => showTab("map")]]);
+  const sc = w.scripts || {};
+  row("⚙", "Scripts", !!(sc.enabled && [sc.shared, sc.input, sc.context, sc.output].some(x => (x || "").trim())), "#a8a090", [["Voir", "Règles programmées de ton monde", () => showTab("scripts")]]);
+}
+async function worldDescGen(){
+  const w = state.world, st = $("wDescSt"), b = $("wDescGen");
+  if(busy) return;
+  b.disabled = true; st.textContent = "L'IA écrit…";
+  try{
+    const head = SAFE_RULE + "\n" + (langRule() ? langRule() + "\n" : "") + worldContext(2500);
+    const out = await genText(head + "\n\n" + consigne("forge-monde") + "\n", 420, ["###", "\n\n\n\n"]);
+    if(out){ w.desc = out; $("wDesc").value = out; save(); renderWorldDash(); }
+    st.textContent = "Fait — relis et ajuste.";
+  }catch(e){ st.textContent = "✖ Moteur de texte injoignable (" + e.message + ")"; }
+  b.disabled = false;
+}
+
+/* ---- accueil : mes mondes ---- */
+function renderHomeWorlds(data){
+  const sec = $("hmWorldsSec"), g = $("hmWorlds"); if(!sec || !g) return;
+  const worlds = new Map();
+  data.forEach(x => { if(!x.world) return; const k = x.world.toLowerCase(); const w = worlds.get(k);
+    if(w){ w.n++; if(!w.cover && x.cover) w.cover = x.cover; } else worlds.set(k, {name:x.world, genre:x.genre, src:x, n:1, cards:x.cards, cover:x.cover}); });
+  sec.hidden = !worlds.size; g.innerHTML = "";
+  worlds.forEach(w => {
+    const d = fgEl(`<div class="hm-card"><div class="cv">🌍</div><div class="bd"><div class="t"></div><div class="hm-meta"></div><div class="hm-meta" data-c></div>
+      <div class="acts"><button class="small primary" data-a="new">⚔ Nouvelle chronique</button><button class="small" data-a="edit" title="Modifier le monde de ta dernière chronique dans ce monde">🛠 Modifier</button></div></div></div>`);
+    bg(d.querySelector(".cv"), w.cover);
+    d.querySelector(".t").textContent = w.name;
+    d.querySelector(".hm-meta").textContent = w.genre || "";
+    d.querySelector("[data-c]").textContent = w.n + (w.n > 1 ? " chroniques" : " chronique");
+    d.querySelector('[data-a="edit"]').onclick = e => { e.stopPropagation(); homeOpen(w.src.m.id, () => openAtelier("world")); };
+    d.onclick = () => {
+      if(busy) return alert("Attends que le Conteur ait fini d'écrire.");
+      hideHome(); if(w.src.m.id !== lib.active) switchAdventure(w.src.m.id);
+      newAdventure(true); setStatus("Nouvelle chronique créée"); if(state.starts.length) openWizard();
+    };
+    g.appendChild(d);
+  });
+}
+
+/* ---- éditeur de départ : insérer les réponses ---- */
+let smLastField = "smOpening";
+function renderStartIns(){
+  const box = $("smIns"); if(!box) return; box.innerHTML = "";
+  editStart.questions.filter(q => q.key).forEach(q => {
+    const b = document.createElement("button"); b.className = "small"; b.dataset.notr = "";
+    b.textContent = q.key;
+    b.onmousedown = e => e.preventDefault();
+    b.onclick = () => {
+      const ta = $(smLastField), ins = "${" + q.key + "}";
+      const a = ta.selectionStart ?? ta.value.length, z = ta.selectionEnd ?? a;
+      ta.value = ta.value.slice(0, a) + ins + ta.value.slice(z); ta.focus(); ta.selectionStart = ta.selectionEnd = a + ins.length;
+    };
+    box.appendChild(b);
+  });
+}
+function initStartHelpers(){
+  ["smSheet", "smMemory", "smAn", "smOpening"].forEach(id => $(id).addEventListener("focus", () => smLastField = id));
+  const add = q => { editStart.questions.push(q); renderQuestions(); };
+  $("smAddPeuple").onclick = () => add({key:"Peuple", label:"De quel peuple est ton personnage ?", kind:"cards", options:"Peuple"});
+  $("smAddChoice").onclick = () => add({key:"Rôle", label:"Quel est son rôle dans ce monde ?", kind:"choice", options:""});
+}
+
+load(); appliquerApresChargement(); absenceSince = (curMeta() || {}).updated || 0; normJeu(); initLangue(); bind(); fillAll(); setMode(curMode().id); initTalk(); initExtras(); initHome(); initForge(); initStartHelpers(); initDossier(); initJeu(); showHome(); initEngine();
 </script>
 </body>
 </html>

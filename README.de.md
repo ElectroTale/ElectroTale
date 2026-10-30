@@ -11,6 +11,7 @@
 ## Was drin ist
 
 - Die ganze App in 6 Sprachen: Deutsch, Englisch, Französisch, Spanisch, Italienisch, Portugiesisch. Wähle deine auf dem Startbildschirm (🌍); die Geschichte folgt.
+- Die Weltenschmiede: Wähle ein Genre und eine Idee, und der Erzähler erschafft Beschreibung, Völker, Orte, Figuren und den Anfang der Geschichte. Alles bleibt in der Werkstatt bearbeitbar.
 - Ein Launcher, der deinen PC prüft (Prozessor, Speicher, Grafikkarte) und die passenden Modelle herunterlädt.
 - Schicksal per W20, Kämpfe und Proben, Tarotkarten, ein Quest-Tagebuch, 31 Heldentaten und eine tägliche Belohnung.
 - Lokal erzeugte Bilder (stable-diffusion.cpp) und eine Erzählerstimme (Kokoro über sherpa-onnx).

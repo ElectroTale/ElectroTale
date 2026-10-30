@@ -11,6 +11,7 @@
 ## What's inside
 
 - The whole app in 6 languages: English, French, Spanish, Italian, German, Portuguese. Pick yours on the home screen (🌍); the story follows.
+- The World Forge: pick a genre and an idea, and the Storyteller creates the description, peoples, places, characters and the beginning of the story. Everything stays editable in the Workshop.
 - A launcher that checks your PC (processor, memory, graphics card) and downloads the models that fit.
 - Fate on a d20, fights and trials, tarot cards, a quest journal, 31 achievements and a daily reward.
 - Images generated locally (stable-diffusion.cpp) and a narrator voice (Kokoro through sherpa-onnx).

@@ -11,6 +11,7 @@
 ## O que tem dentro
 
 - O aplicativo inteiro em 6 idiomas: português, inglês, francês, espanhol, italiano e alemão. Escolha o seu na tela inicial (🌍); a história acompanha.
+- A Forja do mundo: escolha um gênero e uma ideia, e o Narrador cria a descrição, os povos, os lugares, os personagens e o começo da história. Tudo continua editável na Oficina.
 - Um lançador que analisa o PC (processador, memória, placa de vídeo) e baixa os modelos adequados.
 - O destino no d20, combates e provas, cartas de tarô, um diário de missões, 31 façanhas e uma recompensa diária.
 - Imagens geradas localmente (stable-diffusion.cpp) e uma voz narradora (Kokoro via sherpa-onnx).
