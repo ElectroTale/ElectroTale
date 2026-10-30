@@ -2726,7 +2726,10 @@ function looksGarbled(t){
   const bad = (t.match(/Â|Ã|\uFFFD|&#/g) || []).length + (t.match(/\b(\w+)(\s+\1\b){2,}/g) || []).length * 2;
   if(bad >= 4 && bad * 40 > t.length) return true;
   const ns = t.replace(/\s/g, "");
-  return ns.length >= 10 && (ns.match(/\p{L}/gu) || []).length < ns.length * 0.6;
+  if(ns.length >= 10 && (ns.match(/\p{L}/gu) || []).length < ns.length * 0.6) return true;
+  // texte en miettes : surtout des bouts de 1 à 3 mots sans ponctuation, un par ligne (« The following / When / There is… »)
+  const ls = t.split("\n").map(l => l.trim()).filter(Boolean);
+  return ls.length >= 3 && ls.filter(l => l.split(/\s+/).length <= 3 && !/[.!?…»"”:]$/.test(l)).length * 3 >= ls.length * 2;
 }
 function buildPrompt(){
   const cfg = state.cfg;
@@ -2763,8 +2766,16 @@ function buildPrompt(){
     const cut = body.search(/[.!?»]\s/);
     if(cut > -1 && cut < 400) body = body.slice(cut + 2);
   }
-  const ctxR = runHook("context", head + body);
-  if(typeof ctxR === "string" && ctxR !== head + body) return wrapInstruct("", ctxR, live);
+  // script « Contexte » : ce qu'il ajoute avant ou après va dans « En ce moment ». Avant, tout le prompt (règles comprises)
+  // finissait dans « Histoire jusqu'ici » derrière la ligne du script, et le modèle s'y perdait.
+  const orig = head + body, ctxR = runHook("context", orig);
+  if(typeof ctxR === "string" && ctxR !== orig){
+    const at = ctxR.indexOf(orig);
+    if(at < 0) return wrapInstruct("", ctxR, live);
+    if(!instruct) return ctxR;
+    const extra = (ctxR.slice(0, at).trim() + "\n" + ctxR.slice(at + orig.length).trim()).trim();
+    return wrapInstruct(head, body, [live, extra].filter(Boolean).join("\n\n"));
+  }
   return wrapInstruct(head, body, live);
 }
 
@@ -4799,17 +4810,20 @@ const NAME_STOP = new Set(("Tu Il Elle Ils Elles Vous Nous Je On Le La Les Un Un
   "Comme Si Lorsque Là Ici Voici Voilà Monsieur Madame Mademoiselle Seigneur Dame Sire Messire Ah Oh Eh Hé Bonjour Bonsoir Merci Pardon " +
   "Attends Regarde Viens Allez Écoute Quelle Quel Quels Quelles Rien Personne Certains Plusieurs Aucun Aucune Lui Elle Moi Toi Eux Celui Celle " +
   "Ceux Cela Ça Ceci Était Est Sont Avez Avait Encore Jamais Toujours Déjà Peut-être Maintenant Aujourd'hui Demain Hier Bientôt Ainsi Sinon " +
-  "Pas Plus Moins Très Trop Assez Même Autre Autres Premier Première Dernier Dernière Nord Sud Est Ouest").split(" "));
+  "Pas Plus Moins Très Trop Assez Même Autre Autres Premier Première Dernier Dernière Nord Sud Est Ouest " +
+  "Jour Jours Nuit Nuits Semaine Mois Année Chapitre Tour Météo Résumé Combat Épreuve Jet Réussite Échec Rappel Sécurité Contexte Histoire Consigne").split(" "));
 let pendingNames = [];
 const escRe = t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const noTags = t => String(t || "").replace(/\[[^\]\n]*\]/g, " ");   // [Jour 3 de l'aventure], [Jet…] : balises, pas des noms
 function detectNames(text){
-  if(!text) return;
+  text = noTags(text);
+  if(!text.trim()) return;
   const known = new Set();
   state.worldinfo.forEach(c => (c.title + "," + c.keys).split(",").forEach(k => k.trim() && known.add(k.trim().toLowerCase())));
   (state.cfg.charName || "").split(/\s+/).forEach(w => w && known.add(w.toLowerCase()));
   state.ignoredNames.forEach(n => known.add(n.toLowerCase()));
   pendingNames.forEach(p => known.add(p.name.toLowerCase()));
-  const recent = storyText().slice(-8000);
+  const recent = noTags(storyText().slice(-8000));
   const seqRe = /[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ'’-]+(?:\s+(?:(?:de|du|des|le|la)\s+|d['’])?[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ'’-]+)*/g;
   const out = [];
   (text.match(seqRe) || []).forEach(seq => {
