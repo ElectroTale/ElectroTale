@@ -10,7 +10,7 @@
   const orig = new WeakMap(), lastSet = new WeakMap(), origAttr = new WeakMap();
   const ATTRS = ["title", "placeholder", "aria-label"];
   // zones jamais traduites (le récit, ce que le joueur écrit, le texte de l'IA)
-  const SKIP = "#story .chunk, #talkMsgs, .tk-msg, #ctx, #absText, #engLog, textarea, script, style, code, pre, [data-notr]";
+  const SKIP = "#story .chunk, #talkMsgs, .tk-msg, #ctx, #absText, #engLog, #bootLog, textarea, script, style, code, pre, [data-notr]";
   // zones de contenu du joueur : seulement les textes identiques à un texte de l'appli (« Nouvelle chronique »…)
   const EXACT = ".t, .ex, .p, .jr-t, .jr-d, .fb-foe, .fb-what, .tribbon, .hm-char .s, .ctitle, [data-exact]";
   const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

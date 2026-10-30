@@ -84,8 +84,18 @@ function saveCfg(c) {
 }
 
 function send(channel, data) { if (win && !win.isDestroyed()) win.webContents.send(channel, data); }
+// le dessinateur (images) ne démarre qu'une fois le Conteur chargé, ou en échec
+let sdAfterText = false;
+function startSdAfterText() { if (!sdAfterText) return; sdAfterText = false; startSd(); }
+async function startTextThenSd() {
+  sdAfterText = true;
+  const r = await startEngine();
+  if (status !== "starting") startSdAfterText();   // déjà prêt, ou pas de Conteur : rien à attendre
+  return r;
+}
 function setStatus(s, msg) {
   status = s; statusMsg = msg || "";
+  if (s !== "starting" && sdAfterText) setTimeout(startSdAfterText, 1500);
   if (process.env.KA_DEBUG) console.log("STATUS", s, statusMsg);
   send("engine:status", { status, msg: statusMsg });
 }
@@ -99,7 +109,13 @@ function log(line) {
 }
 
 /* ---------- détection GPU ---------- */
+// la carte ne change pas pendant une partie : on ne la cherche qu'une fois (PowerShell met plusieurs secondes à répondre)
+let gpuInfo = null;
 function detectGpu() {
+  if (!gpuInfo) gpuInfo = findGpu().then(g => { if (g.vendor === "unknown" && !g.name) setTimeout(() => { gpuInfo = null; }, 60000); return g; });
+  return gpuInfo;
+}
+function findGpu() {
   return new Promise(resolve => {
     execFile("nvidia-smi", ["--query-gpu=name,memory.total", "--format=csv,noheader"], { windowsHide: true, timeout: 5000 },
       (err, out) => {
@@ -434,8 +450,9 @@ ipcMain.on("store:set", (e, k, v) => {
   try {
     fs.mkdirSync(dataDir(), { recursive: true });
     const f = keyFile(k);
-    if (fs.existsSync(f)) fs.copyFileSync(f, f + ".bak");   // copie de secours de la version précédente
     fs.writeFileSync(f + ".tmp", v);
+    // la version précédente devient la copie de secours (renommer est instantané, copier une grosse aventure ne l'est pas)
+    if (fs.existsSync(f)) { try { fs.rmSync(f + ".bak", { force: true }); fs.renameSync(f, f + ".bak"); } catch (err) { fs.copyFileSync(f, f + ".bak"); } }
     fs.renameSync(f + ".tmp", f);
     e.returnValue = true;
   } catch (err) { e.returnValue = false; }
@@ -797,8 +814,13 @@ function catalogue() {
 const findItem = (kind, id) => (catalogue()[kind] || []).find(x => x.id === id) || null;
 
 // mémoire vidéo sous Windows pour les cartes non NVIDIA (le registre donne la vraie valeur, pas limitée à 4 Go)
+let vramInfo = null;
 function winVramGB() {
   if (!WIN) return Promise.resolve(0);
+  if (!vramInfo) vramInfo = findWinVram();
+  return vramInfo;
+}
+function findWinVram() {
   const cmd = "$m=0; Get-ItemProperty -Path 'HKLM:\\SYSTEM\\ControlSet001\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}\\0*' -ErrorAction SilentlyContinue | ForEach-Object { $v=$_.'HardwareInformation.qwMemorySize'; if ($v -and [int64]$v -gt $m) { $m=[int64]$v } }; $m";
   return new Promise(resolve => execFile("powershell", ["-NoProfile", "-NonInteractive", "-Command", cmd], { windowsHide: true, timeout: 8000 },
     (err, out) => resolve(err ? 0 : Math.round((parseInt(String(out).trim()) || 0) / 1073741824))));
@@ -1110,9 +1132,9 @@ ipcMain.handle("engine:setConfig", (e, patch) => {
   const c = { ...loadCfg(), ...p }; saveCfg(c); return c;
 });
 ipcMain.handle("engine:status", () => ({ status, msg: statusMsg, log: logTail }));
-ipcMain.handle("engine:start", () => { startSd(); return startEngine(); });
+ipcMain.handle("engine:start", () => startTextThenSd());
 ipcMain.handle("engine:stop", () => { stopSd(); return stopEngine(); });
-ipcMain.handle("engine:restart", async () => { await stopSd(); await stopEngine(); startSd(); return startEngine(); });
+ipcMain.handle("engine:restart", async () => { await stopSd(); await stopEngine(); return startTextThenSd(); });
 ipcMain.handle("engine:detectGpu", () => detectGpu());
 ipcMain.handle("engine:pickExe", async () => {
   const r = await dialog.showOpenDialog(win, { title: T("Choisir le moteur (llama-server.exe ou koboldcpp.exe)"), properties: ["openFile"],
@@ -1236,7 +1258,12 @@ app.whenReady().then(() => {
   createWindow();
   if (process.env.KA_TEST) setTimeout(() => require(process.env.KA_TEST)(win, app, { forkWorker }), 1500);
   const c = loadCfg();
-  if (c.autoStart && c.modelPath && (c.engine === "integre" || (c.engine === "koboldcpp" ? c.exePath : c.llamaServer))) { startEngine(); startSd(); }
+  detectGpu();   // cherchée tout de suite, pendant que la fenêtre s'ouvre
+  if (c.autoStart && c.modelPath && (c.engine === "integre" || (c.engine === "koboldcpp" ? c.exePath : c.llamaServer))) {
+    // le dessinateur attend que le Conteur soit chargé : les deux à la fois se disputaient le disque et la mémoire
+    startTextThenSd();
+    setTimeout(startSdAfterText, 5 * 60 * 1000);
+  }
 });
 let quitting = false;
 app.on("before-quit", async e => {
