@@ -84,8 +84,18 @@ function saveCfg(c) {
 }
 
 function send(channel, data) { if (win && !win.isDestroyed()) win.webContents.send(channel, data); }
+// le dessinateur (images) ne démarre qu'une fois le Conteur chargé, ou en échec
+let sdAfterText = false;
+function startSdAfterText() { if (!sdAfterText) return; sdAfterText = false; startSd(); }
+async function startTextThenSd() {
+  sdAfterText = true;
+  const r = await startEngine();
+  if (status !== "starting") startSdAfterText();   // déjà prêt, ou pas de Conteur : rien à attendre
+  return r;
+}
 function setStatus(s, msg) {
   status = s; statusMsg = msg || "";
+  if (s !== "starting" && sdAfterText) setTimeout(startSdAfterText, 1500);
   if (process.env.KA_DEBUG) console.log("STATUS", s, statusMsg);
   send("engine:status", { status, msg: statusMsg });
 }
@@ -99,7 +109,13 @@ function log(line) {
 }
 
 /* ---------- détection GPU ---------- */
+// la carte ne change pas pendant une partie : on ne la cherche qu'une fois (PowerShell met plusieurs secondes à répondre)
+let gpuInfo = null;
 function detectGpu() {
+  if (!gpuInfo) gpuInfo = findGpu().then(g => { if (g.vendor === "unknown" && !g.name) setTimeout(() => { gpuInfo = null; }, 60000); return g; });
+  return gpuInfo;
+}
+function findGpu() {
   return new Promise(resolve => {
     execFile("nvidia-smi", ["--query-gpu=name,memory.total", "--format=csv,noheader"], { windowsHide: true, timeout: 5000 },
       (err, out) => {
@@ -206,10 +222,69 @@ async function startIntegre(c) {
   logTail = [];
   log("> moteur intégré : " + path.basename(c.modelPath) + " (contexte " + c.ctx + ")");
   setStatus("starting", "Chargement du modèle " + path.basename(c.modelPath) + "…");
-  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu: c.gpu, layers: c.layers, flash: c.flash }); }
+  // palier « mode prudent » déjà trouvé pour ce modèle et ce réglage de carte (voir le contrôle de départ dans worker.js)
+  const safe = textSafeOf(c);
+  const verified = !!(c.textSafe && c.textSafe.key === textSafeKey(c) && c.textSafe.ok);
+  // carte Intel intégrée en « Auto » : le texte passe par le processeur. Avec Vulkan, ces cartes donnaient du charabia
+  // sur les longs textes, et elles n'allaient pas plus vite que le processeur. « Vulkan » dans Réglages force la carte.
+  let gpu = c.gpu;
+  if (gpu === "auto") {
+    const g = await detectGpu();
+    if (g.vendor === "intel" && !/arc\S*\s+(pro\s+)?[ab]\d/i.test(g.name)) { gpu = "cpu"; log("> carte Intel intégrée : le texte passe par le processeur"); }
+  }
+  try { proc = forkWorker("text", { port: c.port, modelPath: c.modelPath, ctx: c.ctx, gpu, layers: c.layers, flash: c.flash, safe, verified, cpuChecked: (c.cpuChecked || []).includes(c.modelPath), diagFile: path.join(userDir(), "diagnostic-texte.txt") }); }
   catch (e) { proc = null; setStatus("error", "Impossible de lancer le moteur intégré : " + e.message); return { ok: false }; }
   wire(proc, c);
+  // le long contrôle a réussi : on le retient pour ne plus le refaire avec ce modèle et ce réglage
+  if (!verified) proc.stdout.on("data", d => {
+    if (/contrôle complet réussi/.test(d.toString())) { const c2 = loadCfg(); c2.textSafe = { key: textSafeKey(c), level: safe, ok: true }; saveCfg(c2); }
+  });
+  proc.stdout.on("data", d => {
+    if (/contrôle processeur réussi/.test(d.toString())) { const c2 = loadCfg(); c2.cpuChecked = [...new Set([...(c2.cpuChecked || []), c.modelPath])].slice(-20); saveCfg(c2); }
+  });
   return { ok: true };
+}
+const textSafeKey = c => c.modelPath + "|" + c.gpu;
+const textSafeOf = c => c.textSafe && c.textSafe.key === textSafeKey(c) ? Math.max(0, Math.min(3, +c.textSafe.level || 0)) : 0;
+// le modèle a écrit n'importe quoi au contrôle de départ : on relance avec un palier plus prudent
+function textGarbled(c, code) {
+  const level = textSafeOf(c);
+  if (code === 4 && level < 3 && c.gpu !== "cpu") {
+    const next = level + 1, c2 = { ...loadCfg(), textSafe: { key: textSafeKey(c), level: next, ok: false } };
+    saveCfg(c2);
+    log("> le texte sort brouillé avec la carte graphique : nouvel essai en mode prudent " + next + (next >= 3 ? " (processeur seul, plus lent)" : ""));
+    setStatus("starting", next >= 3 ? "La carte graphique calcule faux : passage au processeur…" : "Texte brouillé : nouvel essai en mode prudent " + next + "…");
+    startIntegre(c2);
+    return true;
+  }
+  // même sur le processeur : c'est le fichier. On le note et on passe à un autre modèle de texte du dossier s'il y en a un.
+  const c2 = loadCfg();
+  c2.badText = [...new Set([...(c2.badText || []), c.modelPath])].slice(-20);
+  const other = otherTextModel(c2);
+  if (other) {
+    log("> " + path.basename(c.modelPath) + " écrit du charabia sur ce PC : passage à " + path.basename(other));
+    c2.modelPath = other; saveCfg(c2);
+    setStatus("starting", "Ce fichier de modèle écrit du charabia : passage à " + path.basename(other) + "…");
+    startIntegre(c2);
+    return true;
+  }
+  saveCfg(c2);
+  setStatus("error", "Ce fichier de modèle (" + path.basename(c.modelPath) + ") écrit du charabia sur ce PC, même sans la carte graphique. Télécharge une autre version (par exemple Q5_K_M) ou choisis un autre modèle.");
+  return true;
+}
+// un autre modèle de texte déjà téléchargé (pas un modèle d'images ni de voix, pas un fichier déjà raté)
+function otherTextModel(c) {
+  const bad = new Set(c.badText || []), dirs = [...new Set([modelsDir(), path.dirname(c.modelPath || "")])].filter(Boolean);
+  for (const dir of dirs) {
+    let files = [];
+    try { files = fs.readdirSync(dir).filter(f => /\.gguf$/i.test(f)); } catch (e) { continue; }
+    const ok = files.map(f => path.join(dir, f)).filter(f => !bad.has(f) && f !== c.modelPath &&
+      /llama|mistral|nemo|qwen|gemma|rocinante|instruct|hermes|dolphin/i.test(path.basename(f)) &&
+      !/dreamshaper|stable-diffusion|sd[-_ ]?v?1|sdxl|flux|vae|lcm|kokoro|mmproj|lora/i.test(path.basename(f)));
+    ok.sort((a, b) => (/q5_k_m/i.test(b) - /q5_k_m/i.test(a)));
+    if (ok.length) return ok[0];
+  }
+  return "";
 }
 function wire(me, c) {
   {
@@ -219,6 +294,7 @@ function wire(me, c) {
   me.on("exit", code => {
     if (proc !== me) return;
     proc = null; clearInterval(pollTimer);
+    if ((code === 4 || code === 5) && c.engine === "integre" && status !== "stopped" && textGarbled(c, code)) return;
     const why = (logTail.slice().reverse().find(l => /impossible|error|erreur|failed/i.test(l)) || "").replace(/^\[text\]\s*/, "");
     if (status !== "stopped") setStatus(code === 0 ? "stopped" : "error",
       code === 0 ? "Moteur arrêté." : (why ? why + " — " : "Le moteur s'est arrêté (code " + code + "). ") + "Regarde le journal : souvent pas assez de mémoire → baisse les couches GPU ou le contexte, ou prends un modèle plus petit.");
@@ -338,7 +414,7 @@ ipcMain.handle("dl:start", async (e, { repo, file, url, kind }) => {
 });
 ipcMain.handle("dl:cancel", () => { if (dlReq) { dlReq.destroy(new Error("Téléchargement annulé.")); } return true; });
 ipcMain.handle("dl:pickDir", async () => {
-  const r = await dialog.showOpenDialog(win, { title: "Dossier des modèles", properties: ["openDirectory", "createDirectory"] });
+  const r = await dialog.showOpenDialog(win, { title: T("Dossier des modèles"), properties: ["openDirectory", "createDirectory"] });
   if (r.canceled || !r.filePaths[0]) return null;
   const c = loadCfg(); c.modelsDir = r.filePaths[0]; saveCfg(c); return c;
 });
@@ -377,8 +453,8 @@ function downloadCancelable(url, dest, onProgress, depth = 0) {
   });
 }
 ipcMain.handle("engine:pickExtra", async (e, kind) => {
-  const r = await dialog.showOpenDialog(win, { title: kind === "sd" ? "Modèle d'images" : "Modèle de voix", properties: ["openFile"],
-    filters: [{ name: "Modèles", extensions: ["gguf", "safetensors", "ckpt"] }] });
+  const r = await dialog.showOpenDialog(win, { title: T(kind === "sd" ? "Modèle d'images" : "Modèle de voix"), properties: ["openFile"],
+    filters: [{ name: T("Modèles"), extensions: ["gguf", "safetensors", "ckpt"] }] });
   if (r.canceled || !r.filePaths[0]) return null;
   applyDownloaded(r.filePaths[0], kind); return loadCfg();
 });
@@ -386,13 +462,26 @@ ipcMain.handle("engine:pickExtra", async (e, kind) => {
 /* ---------- stockage des aventures (fichiers) ---------- */
 const dataDir = () => path.join(userDir(), "donnees");
 const keyFile = k => path.join(dataDir(), String(k).replace(/[^\w.-]/g, "_") + ".json");
+// titres des fenêtres Windows dans la langue de l'interface (les textes de la page sont dans app/langues)
+let uiLang = "fr";
+const DLG_TR = {
+  en: {"Dossier des modèles": "Models folder", "Modèle d'images": "Image model", "Modèle de voix": "Voice model", "Modèles": "Models", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Choose the engine (llama-server.exe or koboldcpp.exe)", "Moteur": "Engine", "Choisir un modèle": "Choose a model", "Modèles GGUF": "GGUF models", "Enregistrer le livre": "Save the book"},
+  es: {"Dossier des modèles": "Carpeta de modelos", "Modèle d'images": "Modelo de imágenes", "Modèle de voix": "Modelo de voz", "Modèles": "Modelos", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Elegir el motor (llama-server.exe o koboldcpp.exe)", "Moteur": "Motor", "Choisir un modèle": "Elegir un modelo", "Modèles GGUF": "Modelos GGUF", "Enregistrer le livre": "Guardar el libro"},
+  it: {"Dossier des modèles": "Cartella dei modelli", "Modèle d'images": "Modello di immagini", "Modèle de voix": "Modello vocale", "Modèles": "Modelli", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Scegli il motore (llama-server.exe o koboldcpp.exe)", "Moteur": "Motore", "Choisir un modèle": "Scegli un modello", "Modèles GGUF": "Modelli GGUF", "Enregistrer le livre": "Salva il libro"},
+  de: {"Dossier des modèles": "Modellordner", "Modèle d'images": "Bildmodell", "Modèle de voix": "Stimmmodell", "Modèles": "Modelle", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Motor wählen (llama-server.exe oder koboldcpp.exe)", "Moteur": "Motor", "Choisir un modèle": "Modell wählen", "Modèles GGUF": "GGUF-Modelle", "Enregistrer le livre": "Buch speichern"},
+  pt: {"Dossier des modèles": "Pasta de modelos", "Modèle d'images": "Modelo de imagens", "Modèle de voix": "Modelo de voz", "Modèles": "Modelos", "Choisir le moteur (llama-server.exe ou koboldcpp.exe)": "Escolher o motor (llama-server.exe ou koboldcpp.exe)", "Moteur": "Motor", "Choisir un modèle": "Escolher um modelo", "Modèles GGUF": "Modelos GGUF", "Enregistrer le livre": "Salvar o livro"},
+};
+const T = s => (DLG_TR[uiLang] || {})[s] || s;
+ipcMain.on("ui:setLang", (e, code) => { if (typeof code === "string" && /^[a-z]{2}$/.test(code)) uiLang = code; });
+
 ipcMain.on("store:get", (e, k) => { try { e.returnValue = fs.readFileSync(keyFile(k), "utf8"); } catch (err) { e.returnValue = null; } });
 ipcMain.on("store:set", (e, k, v) => {
   try {
     fs.mkdirSync(dataDir(), { recursive: true });
     const f = keyFile(k);
-    if (fs.existsSync(f)) fs.copyFileSync(f, f + ".bak");   // copie de secours de la version précédente
     fs.writeFileSync(f + ".tmp", v);
+    // la version précédente devient la copie de secours (renommer est instantané, copier une grosse aventure ne l'est pas)
+    if (fs.existsSync(f)) { try { fs.rmSync(f + ".bak", { force: true }); fs.renameSync(f, f + ".bak"); } catch (err) { fs.copyFileSync(f, f + ".bak"); } }
     fs.renameSync(f + ".tmp", f);
     e.returnValue = true;
   } catch (err) { e.returnValue = false; }
@@ -712,7 +801,7 @@ const LAUNCH_CATALOG = {
   text: [
     { id: "llama32-3b", name: "Llama 3.2 3B", repo: "MaziyarPanahi/Llama-3.2-3B-Instruct-abliterated-GGUF", quants: ["Q5_K_M", "Q4_K_M", "Q6_K"], sizeGB: 2.3, needGB: 4,
       note: "Léger et rapide. Pour les petits PC ou sans carte graphique. Français correct." },
-    { id: "llama31-8b", name: "Llama 3.1 8B", repo: "bartowski/Meta-Llama-3.1-8B-Instruct-abliterated-GGUF", quants: ["Q4_K_M", "Q4_K_S", "Q5_K_M"], sizeGB: 4.9, needGB: 6,
+    { id: "llama31-8b", name: "Llama 3.1 8B", repo: "mlabonne/Meta-Llama-3.1-8B-Instruct-abliterated-GGUF", quants: ["Q5_K_M", "Q4_K_M", "Q6_K"], sizeGB: 5.7, needGB: 6,
       note: "Le bon équilibre : bon conteur, suit bien les règles du Conteur." },
     { id: "rocinante-12b", name: "Rocinante 12B", repo: "TheDrummer/Rocinante-12B-v1.1-GGUF", quants: ["Q4_K_M", "Q4_K_S", "Q5_K_M"], sizeGB: 7.5, needGB: 10,
       note: "Entraîné pour l'aventure et le jeu de rôle. Base Mistral : français naturel." },
@@ -754,8 +843,13 @@ function catalogue() {
 const findItem = (kind, id) => (catalogue()[kind] || []).find(x => x.id === id) || null;
 
 // mémoire vidéo sous Windows pour les cartes non NVIDIA (le registre donne la vraie valeur, pas limitée à 4 Go)
+let vramInfo = null;
 function winVramGB() {
   if (!WIN) return Promise.resolve(0);
+  if (!vramInfo) vramInfo = findWinVram();
+  return vramInfo;
+}
+function findWinVram() {
   const cmd = "$m=0; Get-ItemProperty -Path 'HKLM:\\SYSTEM\\ControlSet001\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}\\0*' -ErrorAction SilentlyContinue | ForEach-Object { $v=$_.'HardwareInformation.qwMemorySize'; if ($v -and [int64]$v -gt $m) { $m=[int64]$v } }; $m";
   return new Promise(resolve => execFile("powershell", ["-NoProfile", "-NonInteractive", "-Command", cmd], { windowsHide: true, timeout: 8000 },
     (err, out) => resolve(err ? 0 : Math.round((parseInt(String(out).trim()) || 0) / 1073741824))));
@@ -800,9 +894,13 @@ function recommend(pc, cat) {
   r.voice = "kokoro-fr";
   return r;
 }
+// fichiers proposés par d'anciennes versions du lanceur qui écrivent du charabia : on les retélécharge depuis un autre dépôt
+// (Llama 3.1 8B de bartowski : texte incohérent chez Béryl, alors que le Q5_K_M de mlabonne écrit bien)
+const BAD_FILES = [/^Meta-Llama-3\.1-8B-Instruct-abliterated-Q\w+\.gguf$/];
+const badFile = p => BAD_FILES.some(re => re.test(path.basename(String(p))));
 function installedState(cat = catalogue()) {
   const c = loadCfg(), inst = c.installed || {}, out = {};
-  for (const kind of ["text", "sd"]) for (const it of cat[kind]) if (inst[it.id] && fs.existsSync(inst[it.id])) out[it.id] = inst[it.id];
+  for (const kind of ["text", "sd"]) for (const it of cat[kind]) if (inst[it.id] && fs.existsSync(inst[it.id]) && !badFile(inst[it.id])) out[it.id] = inst[it.id];
   if (c.kokoroDir && fs.existsSync(path.join(c.kokoroDir, "model.onnx"))) out["kokoro-fr"] = c.kokoroDir;
   return out;
 }
@@ -1067,13 +1165,13 @@ ipcMain.handle("engine:setConfig", (e, patch) => {
   const c = { ...loadCfg(), ...p }; saveCfg(c); return c;
 });
 ipcMain.handle("engine:status", () => ({ status, msg: statusMsg, log: logTail }));
-ipcMain.handle("engine:start", () => { startSd(); return startEngine(); });
+ipcMain.handle("engine:start", () => startTextThenSd());
 ipcMain.handle("engine:stop", () => { stopSd(); return stopEngine(); });
-ipcMain.handle("engine:restart", async () => { await stopSd(); await stopEngine(); startSd(); return startEngine(); });
+ipcMain.handle("engine:restart", async () => { await stopSd(); await stopEngine(); return startTextThenSd(); });
 ipcMain.handle("engine:detectGpu", () => detectGpu());
 ipcMain.handle("engine:pickExe", async () => {
-  const r = await dialog.showOpenDialog(win, { title: "Choisir le moteur (llama-server.exe ou koboldcpp.exe)", properties: ["openFile"],
-    filters: process.platform === "win32" ? [{ name: "Moteur", extensions: ["exe"] }] : [] });
+  const r = await dialog.showOpenDialog(win, { title: T("Choisir le moteur (llama-server.exe ou koboldcpp.exe)"), properties: ["openFile"],
+    filters: process.platform === "win32" ? [{ name: T("Moteur"), extensions: ["exe"] }] : [] });
   if (r.canceled || !r.filePaths[0]) return null;
   const c = loadCfg(), f = r.filePaths[0];
   if (/llama-server/i.test(path.basename(f))) { c.llamaServer = f; c.engine = "llamacpp"; }
@@ -1082,9 +1180,9 @@ ipcMain.handle("engine:pickExe", async () => {
 });
 ipcMain.handle("engine:pickModel", async () => {
   const c = loadCfg();
-  const r = await dialog.showOpenDialog(win, { title: "Choisir un modèle", properties: ["openFile"],
+  const r = await dialog.showOpenDialog(win, { title: T("Choisir un modèle"), properties: ["openFile"],
     defaultPath: c.modelPath ? path.dirname(c.modelPath) : undefined,
-    filters: [{ name: "Modèles GGUF", extensions: ["gguf"] }] });
+    filters: [{ name: T("Modèles GGUF"), extensions: ["gguf"] }] });
   if (r.canceled || !r.filePaths[0]) return null;
   return setModel(r.filePaths[0]);
 });
@@ -1108,7 +1206,7 @@ ipcMain.handle("app:info", () => ({ version: app.getVersion(), licences: fs.exis
 ipcMain.handle("book:pdf", async (_e, html, name) => {
   if (typeof html !== "string" || html.length > 200 * 1024 * 1024) return { ok: false, error: "Contenu invalide" };
   const safe = String(name || "Grimoire").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 80) || "Grimoire";
-  const r = await dialog.showSaveDialog(win, { title: "Enregistrer le livre", defaultPath: safe + ".pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] });
+  const r = await dialog.showSaveDialog(win, { title: T("Enregistrer le livre"), defaultPath: safe + ".pdf", filters: [{ name: "PDF", extensions: ["pdf"] }] });
   if (r.canceled || !r.filePath) return { ok: false, canceled: true };
   const tmp = path.join(app.getPath("temp"), "electrotale-livre-" + crypto.randomBytes(6).toString("hex") + ".html");
   const pw = new BrowserWindow({ show: false, webPreferences: { sandbox: true, javascript: false, contextIsolation: true, nodeIntegration: false } });
@@ -1193,7 +1291,12 @@ app.whenReady().then(() => {
   createWindow();
   if (process.env.KA_TEST) setTimeout(() => require(process.env.KA_TEST)(win, app, { forkWorker }), 1500);
   const c = loadCfg();
-  if (c.autoStart && c.modelPath && (c.engine === "integre" || (c.engine === "koboldcpp" ? c.exePath : c.llamaServer))) { startEngine(); startSd(); }
+  detectGpu();   // cherchée tout de suite, pendant que la fenêtre s'ouvre
+  if (c.autoStart && c.modelPath && (c.engine === "integre" || (c.engine === "koboldcpp" ? c.exePath : c.llamaServer))) {
+    // le dessinateur attend que le Conteur soit chargé : les deux à la fois se disputaient le disque et la mémoire
+    startTextThenSd();
+    setTimeout(startSdAfterText, 5 * 60 * 1000);
+  }
 });
 let quitting = false;
 app.on("before-quit", async e => {

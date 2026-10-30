@@ -57,7 +57,7 @@ const queued = fn => { const p = chain.then(fn, fn); chain = p.catch(() => {}); 
 async function runText() {
   let ready = false, loadErr = null, model = null, ctx = null, seq = null, completion = null, nctx = 0, L = null, wrapper = null;
   // petite mémoire à part pour les tâches annexes (titres, résumés, mots-clés d'images) : la mémoire de l'histoire reste intacte
-  let asideCompletion = null, asideSeq = null, asideCtx = 0;
+  let asideCompletion = null, asideSeq = null, asideCtx = 0, onGpu = false;
   serve(cfg.port, async (req, res) => {
     const u = req.url.split("?")[0];
     if (u === "/health") return ready ? json(res, 200, { status: "ok" }) : json(res, 503, { status: loadErr ? "error" : "loading model", error: loadErr });
@@ -86,8 +86,14 @@ async function runText() {
   });
 
   try {
+    // mode prudent de la carte graphique : certains pilotes (surtout Intel intégré, Vulkan) calculent faux
+    // et le modèle écrit n'importe quoi. Chaque palier coupe des accélérations ; le dernier passe au processeur.
+    const safe = +cfg.safe || 0;
+    if (safe >= 1) ["COOPMAT", "COOPMAT2", "INTEGER_DOT_PRODUCT", "BFLOAT16", "FUSION"].forEach(k => process.env["GGML_VK_DISABLE_" + k] = "1");
+    if (safe >= 2) ["F16", "MMVQ", "DOT2"].forEach(k => process.env["GGML_VK_DISABLE_" + k] = "1");
+    if (safe) log("mode prudent " + safe + (safe >= 3 ? " : processeur seul" : " : accélérations de la carte graphique coupées"));
     L = await import("node-llama-cpp");
-    const useGpu = cfg.gpu !== "cpu";
+    const useGpu = cfg.gpu !== "cpu" && safe < 3;
     let llama;
     try { llama = await L.getLlama({ gpu: useGpu ? "auto" : false, build: "never", logLevel: "warn", progressLogs: false }); }
     catch (e) { fail("GPU indisponible, passage au processeur :", e.message); llama = await L.getLlama({ gpu: false, build: "never", logLevel: "warn", progressLogs: false }); }
@@ -100,11 +106,12 @@ async function runText() {
       onLoadProgress: p => { const pc = Math.floor(p * 10) * 10; if (pc !== last) { last = pc; log("chargement " + pc + " %"); } }
     });
     log("couches sur la carte graphique : " + model.gpuLayers);
+    onGpu = !!llama.gpu && model.gpuLayers > 0;
     const os = require("os");
     const threads = Math.max(1, Math.min(llama.cpuMathCores || 4, os.availableParallelism ? os.availableParallelism() : os.cpus().length));
     const want = Math.max(512, Math.min(+cfg.ctx || 8192, model.trainContextSize || 1e9));
     for (let size = want; ; size = Math.floor(size / 2)) {
-      try { ctx = await model.createContext({ contextSize: size, flashAttention: !!cfg.flash, sequences: 1, threads }); break; }
+      try { ctx = await model.createContext({ contextSize: size, flashAttention: !!cfg.flash && !safe, sequences: 1, threads }); break; }
       catch (e) {
         if (size <= 1024) throw e;
         fail("contexte de " + size + " trop grand pour la mémoire, essai avec " + Math.floor(size / 2));
@@ -114,16 +121,89 @@ async function runText() {
     seq = ctx.getSequence();
     completion = new L.LlamaCompletion({ contextSequence: seq });
     try {
-      const a = await model.createContext({ contextSize: Math.min(3072, nctx), flashAttention: !!cfg.flash, sequences: 1, threads });
+      const a = await model.createContext({ contextSize: Math.min(3072, nctx), flashAttention: !!cfg.flash && !safe, sequences: 1, threads });
       asideSeq = a.getSequence(); asideCompletion = new L.LlamaCompletion({ contextSequence: asideSeq }); asideCtx = a.contextSize;
     } catch (e) { fail("pas de mémoire pour les tâches annexes, elles partageront celle de l'histoire"); }
     try { wrapper = L.resolveChatWrapper(model); } catch (e) { wrapper = null; }
+    // petit contrôle avant de raconter : si le modèle ne sait même plus compter, les calculs de la carte graphique sont faux.
+    // Sur le processeur : seulement les trois petits essais, une seule fois par fichier (cfg.cpuChecked). Un fichier qui
+    // les rate écrit du charabia (vu le 30/10 avec un Q4_K_M) : on le dit au lieu de laisser le Conteur écrire n'importe quoi.
+    let check = { ok: true, got: [] };
+    if (onGpu) check = await sanity(asideCompletion || completion);
+    else if (!cfg.cpuChecked) {
+      log("contrôle du fichier sur le processeur (une seule fois)…");
+      check = await shortSanity(asideCompletion || completion);
+      if (check.ok) log("contrôle processeur réussi");
+      else {
+        loadErr = "fichier de modèle illisible";
+        fail("le modèle rate le contrôle sur le processeur (" + check.got.map(g => JSON.stringify(g)).join(", ") + ")");
+        setTimeout(() => process.exit(5), 300);
+        return;
+      }
+    }
+    if (!check.ok && onGpu) {
+      loadErr = "texte incohérent";
+      fail("texte incohérent au contrôle de départ (" + check.got.map(g => JSON.stringify(g)).join(", ") + ")");
+      // la carte graphique calcule faux : on réessaie plus prudemment (palier suivant, puis processeur)
+      setTimeout(() => process.exit(4), 300);
+      return;
+    }
     log("prêt — contexte " + nctx + " jetons, " + threads + " cœurs, format " + (wrapper ? wrapper.wrapperName : "inconnu"));
     ready = true;
   } catch (e) {
     loadErr = String(e && e.message || e);
     fail("impossible de charger le modèle :", loadErr);
     setTimeout(() => process.exit(2), 500);
+  }
+
+  function garbled(t) {
+    const bad = (t.match(/Â|Ã|\uFFFD|&#/g) || []).length + (t.match(/\b(\w+)(\s+\1\b){2,}/g) || []).length * 2;
+    if (bad >= 4 && bad * 40 > t.length) return true;
+    // un vrai récit est fait de lettres à plus de 80 % ; le charabia de chiffres et de ponctuation, à moins de 50 %
+    const ns = t.replace(/\s/g, "");
+    return ns.length >= 30 && (ns.match(/\p{L}/gu) || []).length < ns.length * 0.6;
+  }
+
+  async function shortSanity(comp) {
+    const tests = [["1, 2, 3, 4, 5, 6, 7, 8, 9, 10,", /\b11\b/], ["a, b, c, d, e, f, g, h,", /^\W*i\b/i], ["lundi, mardi, mercredi, jeudi,", /vendredi/i]];
+    const got = []; let ok = 0;
+    for (const [p, re] of tests) {
+      let t; try { t = await comp.generateCompletion(model.tokenize(p), { maxTokens: 6, temperature: 0 }); } catch (e) { t = "(erreur " + e.message + ")"; }
+      got.push(t.slice(0, 30));
+      if (re.test(t)) ok++;
+    }
+    return { ok: ok >= 2, got };
+  }
+
+  async function sanity(comp) {
+    // les phrases courtes et les longs textes ne passent pas par les mêmes calculs sur la carte : on teste les deux
+    let long = ""; for (let i = 1; i <= 300; i++) long += i + ", ";
+    const tests = [["1, 2, 3, 4, 5, 6, 7, 8, 9, 10,", /\b11\b/], ["a, b, c, d, e, f, g, h,", /^\W*i\b/i], ["lundi, mardi, mercredi, jeudi,", /vendredi/i]];
+    const got = []; let ok = 0, longOk = false;
+    const run = async p => { try { return await comp.generateCompletion(model.tokenize(p), { maxTokens: 6, temperature: 0 }); } catch (e) { return "(erreur " + e.message + ")"; } };
+    for (const [p, re] of tests) {
+      const t = await run(p);
+      got.push(t.slice(0, 30));
+      if (re.test(t)) ok++;
+    }
+    const t = await run(long.trim());
+    got.push(t.slice(0, 30));
+    longOk = /\b301\b/.test(t);
+    if (!(ok >= 2 && longOk)) return { ok: false, got };
+    // une seule fois par modèle et par réglage : un texte aussi long qu'une vraie partie (~2 300 jetons).
+    // Sur certaines cartes, c'est seulement là que les calculs déraillent ; c'est lent, d'où le « une seule fois ».
+    if (!cfg.verified) {
+      const room = Math.min(2400, (comp === asideCompletion ? asideCtx : nctx) - 64);
+      let n = 300, toks = model.tokenize(long.trim());
+      while (toks.length < room - 40) { for (let k = 0; k < 50; k++) long += (++n) + ", "; toks = model.tokenize(long.trim()); }
+      while (toks.length > room) { long = long.replace(/\d+, $/, ""); n--; toks = model.tokenize(long.trim()); }
+      log("contrôle sur un long texte (" + toks.length + " jetons), une seule fois…");
+      const t2 = await run(long.trim());
+      got.push(t2.slice(0, 30));
+      if (!new RegExp("\\b" + (n + 1) + "\\b").test(t2)) return { ok: false, got };
+      log("contrôle complet réussi");
+    }
+    return { ok: true, got };
   }
 
   function applyTemplate(messages) {
@@ -163,8 +243,12 @@ async function runText() {
     let bias;
     if (Array.isArray(b.logit_bias) && b.logit_bias.length) {
       bias = new L.TokenBias(model.tokenizer);
+      // seulement les mots qui tiennent en un seul jeton : pour un mot en plusieurs morceaux, la bibliothèque
+      // interdirait chaque morceau (« s », « oud », « ain »…), et le modèle ne pourrait plus écrire en français
       for (const [w, v] of b.logit_bias) if (typeof w === "string" && w) {
-        try { bias.set(w, v === false ? "never" : { logit: +v || 0 }); bias.set(" " + w, v === false ? "never" : { logit: +v || 0 }); } catch (e) {}
+        for (const s of [w, " " + w]) {
+          try { const t = model.tokenize(s); if (t.length === 1) bias.set(t[0], v === false ? "never" : { logit: +v || 0 }); } catch (e) {}
+        }
       }
     }
     const stops = (Array.isArray(b.stop) ? b.stop : []).filter(s => typeof s === "string" && s.length);
@@ -195,6 +279,20 @@ async function runText() {
       (sent.length - reused) + " jetons relus sur " + sent.length + ", " + (secs > 0 ? (nOut / secs).toFixed(1) : "?") + " jetons/s");
     if (stream) { res.write("data: " + JSON.stringify({ content: "", stop: true }) + "\n\n"); res.end(); }
     else json(res, 200, { content: text, stop: true });
+    // réponse brouillée en pleine partie (morceaux d'octets « Â », « &# », caractères illisibles) :
+    // la carte graphique calcule faux sur ce long texte, on redémarre en mode plus prudent
+    if (garbled(text)) {
+      fail("texte incohérent pendant la partie : " + JSON.stringify(text.slice(0, 80)));
+      // tout ce qu'il faut pour comprendre, dans un fichier à envoyer
+      try {
+        fs.writeFileSync(cfg.diagFile, ["ÉlectroTale — diagnostic du texte", new Date().toISOString(),
+          "modèle : " + path.basename(cfg.modelPath), "carte : " + (onGpu ? "oui (" + model.gpuLayers + " couches)" : "non, processeur") + ", mode prudent " + (+cfg.safe || 0),
+          "réglages : " + JSON.stringify({ temperature: b.temperature, top_k: b.top_k, top_p: b.top_p, min_p: b.min_p, repeat_penalty: b.repeat_penalty, repeat_last_n: b.repeat_last_n, interdits: (b.logit_bias || []).length }),
+          "jetons du texte envoyé : " + tokens.length, "", "===== RÉPONSE =====", text, "", "===== FIN DU TEXTE ENVOYÉ =====", String(b.prompt || "").slice(-6000)].join("\r\n"));
+        log("diagnostic enregistré dans " + cfg.diagFile);
+      } catch (e) {}
+      if (onGpu) setTimeout(() => process.exit(4), 300);
+    }
   }
 }
 
