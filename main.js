@@ -801,6 +801,8 @@ const LAUNCH_CATALOG = {
   text: [
     { id: "llama32-3b", name: "Llama 3.2 3B", repo: "MaziyarPanahi/Llama-3.2-3B-Instruct-abliterated-GGUF", quants: ["Q5_K_M", "Q4_K_M", "Q6_K"], sizeGB: 2.3, needGB: 4,
       note: "Léger et rapide. Pour les petits PC ou sans carte graphique. Français correct." },
+    { id: "gemma3-4b", name: "Gemma 3 4B", repo: "mlabonne/gemma-3-4b-it-abliterated-GGUF", quants: ["Q5_K_M", "Q4_K_M", "Q6_K"], sizeGB: 2.8, needGB: 4,
+      note: "Rapide : environ deux fois plus vite que le 8B sur le processeur, un peu moins fin. Bon français. Idéal avec le mode rapide." },
     { id: "llama31-8b", name: "Llama 3.1 8B", repo: "mlabonne/Meta-Llama-3.1-8B-Instruct-abliterated-GGUF", quants: ["Q5_K_M", "Q4_K_M", "Q6_K"], sizeGB: 5.7, needGB: 6,
       note: "Le bon équilibre : bon conteur, suit bien les règles du Conteur." },
     { id: "rocinante-12b", name: "Rocinante 12B", repo: "TheDrummer/Rocinante-12B-v1.1-GGUF", quants: ["Q4_K_M", "Q4_K_S", "Q5_K_M"], sizeGB: 7.5, needGB: 10,

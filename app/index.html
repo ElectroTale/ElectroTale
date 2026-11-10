@@ -1108,6 +1108,8 @@ h3{border-bottom:none;margin-top:28px}
     <label class="inline"><input type="checkbox" id="stopPlayer"> Empêcher l'IA de parler à la place du joueur</label>
     <label class="inline"><input type="checkbox" id="trimEnd"> Couper les phrases inachevées</label>
     <label class="inline"><input type="checkbox" id="stream"> Texte en direct (s'affiche mot par mot)</label>
+    <label class="inline"><input type="checkbox" id="rapide"> ⚡ Mode rapide : réponses courtes et histoire résumée plus tôt</label>
+    <p class="hint">Le Conteur écrit 2 à 4 phrases au lieu d'un long paragraphe, et relit moins de texte à chaque tour. Conseillé quand le texte tourne sur le processeur : il s'active tout seul dans ce cas.</p>
     <label>Séquences d'arrêt perso (une par ligne, <code>\n</code> = retour à la ligne)</label>
     <textarea id="customStops" rows="3" placeholder="Ex : ###"></textarea>
     <label>Mots/expressions interdits (un par ligne)</label>
@@ -2107,8 +2109,10 @@ async function maybeChapter(force){
   if(!force && n < every) return;
   if(!n) return;
   setStatus("Le Conteur termine le chapitre " + ROMAN(state.chapters.length) + "…");
-  try{ await titleChapter(cur, state.story.length); }catch(e){}
-  state.chapters.push({at:state.story.length, title:""});
+  const story = state.story, at = story.length;
+  try{ await titleChapter(cur, at); }catch(e){}
+  if(state.story !== story || state.chapters[state.chapters.length - 1] !== cur) return;   // autre aventure entre-temps
+  state.chapters.push({at, title:""});
   featAdd("chapters");
   save(); render(); renderTree();
   if(state.cfg.oracle !== false) setTimeout(drawOmen, 1200);
@@ -2731,22 +2735,28 @@ function looksGarbled(t){
   const ls = t.split("\n").map(l => l.trim()).filter(Boolean);
   return ls.length >= 3 && ls.filter(l => l.split(/\s+/).length <= 3 && !/[.!?…»"”:]$/.test(l)).length * 3 >= ls.length * 2;
 }
+// mode rapide : réponses courtes, histoire résumée plus tôt (voir aussi maybeSummarize)
+const rapide = () => !!state.cfg.rapide;
+const resumeOkHead = () => !!(state.summary && state.summary.trim() && !looksGarbled(state.summary));
 function buildPrompt(){
   const cfg = state.cfg;
   const budget = Math.max(500, (cfg.maxCtx - cfg.maxLen) * 3.2);
   // Vitesse : le moteur ne relit que ce qui a changé depuis le début du texte. On met donc en tête ce qui bouge peu
   // (règles, monde, mémoire, résumé) et après l'histoire ce qui change souvent (fiche, lieu, cartes du Codex actives).
   const blocks = [SAFE_RULE, langRule(), CONTEUR.consigne, cfg.sysPrompt.trim(), state.sheet.autoTags ? CONTEUR["regles-du-jeu"] : "", cfg.combat !== false ? CONTEUR.combat : "", worldText(), state.memory.trim(),
-                  state.summary && state.summary.trim() && !looksGarbled(state.summary) ? "[Résumé de l'histoire jusqu'ici]\n" + state.summary.trim() : ""].filter(Boolean);
+                  resumeOkHead() ? "[Résumé de l'histoire jusqu'ici]\n" + state.summary.trim() : ""].filter(Boolean);
   const live = [sheetText(), locationText(), activeWi().map(w => w.content.trim() + bondNote(w)).join("\n"), omenText(), fightLive(),
                 langId() !== "fr" ? `[Rappel : écris uniquement en ${LG().nom} (${LG().natif}).]` : "",
-                riskyStory() ? GUARD_RULE : ""].filter(Boolean).join("\n\n");
+                riskyStory() ? GUARD_RULE : "", rapide() ? consigne("rapide") : ""].filter(Boolean).join("\n\n");
   const instruct = !!(INSTRUCT[fmtKey()] || {}).u;
   if(!instruct && live) blocks.push(live);
   const head = blocks.length ? blocks.join("\n\n") + "\n\n" : "";
   const liveLen = instruct ? live.length : 0;
   const an = state.authorsnote.trim();
-  const lisible = state.story.filter(c => !(c.type === "ai" && looksGarbled(c.text)));
+  // Vitesse : ce que le résumé raconte déjà n'est pas renvoyé en entier. Le début du texte ne bouge alors qu'à chaque
+  // nouveau résumé (une relecture), au lieu d'être recoupé tous les quelques tours.
+  const from = resumeOkHead() ? Math.min(state.sumUpTo || 0, state.story.length) : 0;
+  const lisible = state.story.slice(from).filter(c => !(c.type === "ai" && looksGarbled(c.text)));
   const parts = lisible.map((c, i) => chunkText(c, i, lisible));
   if(an){
     const depth = Math.min(parseInt(state.anDepth) || 0, parts.length);
@@ -2959,7 +2969,7 @@ async function generate(){
   const prompt = buildPrompt();
   $("ctx").textContent = prompt;
   const cfg = state.cfg, stops = stopList();
-  const body = genBody(prompt, {maxLen:cfg.maxLen, temp:cfg.temp, repPen:cfg.repPen, repRange:cfg.repRange,
+  const body = genBody(prompt, {maxLen:rapide() ? Math.min(+cfg.maxLen || 200, 130) : cfg.maxLen, temp:cfg.temp, repPen:cfg.repPen, repRange:cfg.repRange,
     topP:cfg.topP, topK:cfg.topK, minP:cfg.minP, stops, banned:lines(cfg.banned)});
   setBusy(true, "Le Conteur écrit…");
   abortCtrl = new AbortController(); userStopped = false;
@@ -3024,10 +3034,19 @@ async function generate(){
       for(let i = state.story.length - 1; i >= 0 && state.story[i].type !== "img"; i--) if(state.story[i].type === "ai") k++;
       if(k >= n) autoIllustrate(state.story[state.story.length - 1]);
     }
-    try{ await maybeSummarize(false); }catch(e){}
-    try{ await maybeChapter(false); }catch(e){}
   }
   setBusy(false);
+  // résumé et fin de chapitre en arrière-plan : le joueur peut déjà écrire son action pendant ce temps
+  if(ok) afterTurn();
+}
+let afterTurnRunning = false;
+async function afterTurn(){
+  if(afterTurnRunning) return;
+  afterTurnRunning = true;
+  try{
+    try{ await maybeSummarize(false); }catch(e){}
+    try{ await maybeChapter(false); }catch(e){}
+  }finally{ afterTurnRunning = false; }
 }
 async function stopGen(){
   userStopped = true;
@@ -3750,7 +3769,7 @@ function handleImportInner(obj){
 
 /* ================= formulaires ↔ état ================= */
 const CFG_IDS = ["chapterEvery","fate","imgSize","imgSteps","imgCfg","imgAuto","imgStyle","imgNeg","ttsVoice","ttsRate","ttsPitch","apiUrl","person","instruct","maxCtx","sysPrompt","customStops","banned", ...GEN_KEYS];
-const CFG_CHK = ["dice3d","diceDamage","autoVerb","stopPlayer","trimEnd","stream","autoSum","ttsAuto","oracle","multiVoice","absence","autoPortrait"];
+const CFG_CHK = ["dice3d","diceDamage","autoVerb","stopPlayer","trimEnd","stream","autoSum","ttsAuto","oracle","multiVoice","absence","autoPortrait","rapide"];
 function fillAll(){
   fillAdvName();
   fillVoices(); $("ttsRateVal").textContent = (+state.cfg.ttsRate).toFixed(2); $("ttsPitchVal").textContent = (+state.cfg.ttsPitch).toFixed(2);
@@ -4789,17 +4808,23 @@ async function maybeSummarize(force){
   const from = state.sumUpTo;
   let k = texts.length;
   if(force) k = Math.max(0, texts.length - 2);
-  else { let acc = 0; while(k > 0 && acc + texts[k - 1].length <= budget * 0.45){ acc += texts[k - 1].length; k--; } }
+  else {
+    // en mode rapide, on garde environ 1300 jetons d'histoire mot pour mot ; le reste passe dans le résumé
+    const keep = rapide() ? Math.min(budget * 0.45, 4500) : budget * 0.45;
+    let acc = 0; while(k > 0 && acc + texts[k - 1].length <= keep){ acc += texts[k - 1].length; k--; }
+  }
   if(k <= from){ if(force) setStatus("Rien de nouveau à résumer"); return; }
   let part = texts.slice(from, k).join("");
-  if(!force && part.length < 1500) return;
+  if(!force && part.length < (rapide() ? 1200 : 1500)) return;
   while(k > from + 1 && part.length > budget * 0.4){ k--; part = texts.slice(from, k).join(""); }
   setStatus("Mise à jour du résumé de l'histoire…");
   const who = cfg.charName.trim() || "le héros";
   const prompt = (state.summary.trim() ? "Résumé de l'histoire jusqu'ici :\n" + state.summary.trim() + "\n\n" : "") +
     "Nouveaux événements :\n" + part.replace(/```[a-z]*/gi, "").trim() + "\n\n" +
     consigne("resume", {heros:who});
-  const out = await genText(prompt, 400, ["###", "\n\n\n"]);
+  const story = state.story;
+  const out = await genText(prompt, rapide() ? 300 : 400, ["###", "\n\n\n"]);
+  if(state.story !== story || state.sumUpTo !== from) return;   // autre aventure ouverte, ou histoire retouchée, entre-temps
   if(out && out.length > 40){
     state.summary = out; state.sumUpTo = k; save();
     $("summary").value = out; updateSumInfo();
@@ -5027,6 +5052,8 @@ function onEngineStatus({status, msg}){
     // résumé d'absence et portraits manquants occupent le Conteur plusieurs minutes sur le processeur :
     // on ne les lance au démarrage que si le texte tourne sur la carte graphique, pour que le joueur n'attende pas
     if(status === "ready" && !engOnCpu){ setTimeout(maybeAbsence, 1500); setTimeout(backfillPortraits, 4000); }
+    // texte sur le processeur : le mode rapide s'active tout seul la première fois (le joueur peut le couper)
+    if(status === "ready" && engOnCpu && state.cfg.rapide === undefined){ state.cfg.rapide = true; $("rapide").checked = true; toast("⚡ Mode rapide activé : le texte tourne sur le processeur (réglable dans Le Conteur)"); }
     const url = "http://127.0.0.1:" + (engCfg ? engCfg.port : 5001);
     if(state.cfg.apiUrl !== url){ state.cfg.apiUrl = url; $("apiUrl").value = url; }
     if(engCfg && status === "ready" && +state.cfg.maxCtx !== +engCfg.ctx){ state.cfg.maxCtx = engCfg.ctx; $("maxCtx").value = engCfg.ctx; }
@@ -5917,6 +5944,7 @@ const CONTEUR = {
   "consigne": "",
   "regles-du-jeu": TAG_RULES,
   "combat": COMBAT_RULES,
+  "rapide": "[Réponse courte : 2 à 4 phrases au maximum. Décris seulement l'essentiel de ce qui se passe, puis arrête-toi.]",
   "resume": "Écris un résumé mis à jour de toute l'histoire (ancien résumé + nouveaux événements), en français, au passé, en 6 à 12 phrases au maximum. Garde les faits importants : personnages rencontrés, lieux visités, objets obtenus, décisions et promesses de {heros}, relations, mystères en cours. Pas de titre, pas de liste, pas de commentaire.",
   "tete-a-tete": "Tu es {perso}. Tu parles en tête-à-tête avec {heros}. Réponds à son dernier message en restant fidèle à ton caractère et à votre relation : 1 à 4 phrases, en français, à la première personne. Tu peux décrire tes gestes entre *astérisques*. N'écris jamais les paroles ni les actions de {heros}.\nUne relation se mérite : elle change lentement, et un simple compliment ne suffit pas à faire tomber amoureux.",
   "souvenirs": "Écris en 3 à 6 phrases ce que {perso} retient de toutes ses conversations avec {heros} : faits appris, promesses, secrets, disputes, sentiments. Au passé, à la troisième personne, en français. Pas de titre, pas de liste.",
@@ -5946,6 +5974,7 @@ const TXT_AIDE = {
   "consigne": "Consigne donnée au Conteur dans TOUTES les histoires (ton, style, règles de ton monde…).\nExemple : Écris dans un style sombre et poétique, au présent, à la deuxième personne.",
   "combat": "Règles des combats et des épreuves au d20 (envoyées quand « Combats et épreuves » est coché dans Modes d'action).\nGarde les balises [COMBAT nom, force n] et [ÉPREUVE Caractéristique : but] : c'est ce que le jeu sait lire.",
   "regles-du-jeu": "Règles envoyées quand « Balises automatiques » est coché dans la fiche du héros.\nGarde les balises [PV …] [OR …] [OBJET …] [QUÊTE …] [LIEU …] : c'est ce que le jeu sait lire.",
+  "rapide": "Rappel ajouté à la fin du contexte quand le mode rapide est actif (Le Conteur → Instructions).",
   "resume": "Consigne du résumé automatique de l'histoire.\n{heros} = le nom du héros.",
   "tete-a-tete": "Consigne du tête-à-tête. {perso} = le personnage, {heros} = ton héros.\nLe jeu ajoute toujours lui-même la règle des moins de 18 ans et la balise [LIEN ±n].",
   "souvenirs": "Ce que garde un personnage de vos tête-à-tête. {perso} = le personnage, {heros} = ton héros.",
