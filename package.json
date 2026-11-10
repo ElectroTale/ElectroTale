@@ -28,6 +28,7 @@
       "main.js",
       "preload.js",
       "contenu.js",
+      "distant.js",
       "app/**/*",
       "package.json"
     ],
