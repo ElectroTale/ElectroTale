@@ -865,20 +865,8 @@ h3{border-bottom:none;margin-top:28px}
       <option value="integre">⚡ Intégré à ElectroTale — recommandé, rien à installer</option>
       <option value="llamacpp">llama.cpp externe (avancé)</option>
       <option value="koboldcpp">KoboldCpp externe (ancien)</option>
-      <option value="distant">🌐 Moteur distant (option : un service en ligne ou un autre PC)</option>
     </select>
     <p class="hint" id="engEngineHint"></p>
-    <div id="engRemote" hidden>
-      <p class="hint" style="border-left:3px solid var(--accent);padding-left:8px">⚠ Avec un service en ligne, ton histoire part sur Internet à chaque tour : ce n'est plus 100 % local ni 100 % privé. Choisis un service qui ne garde pas les textes. Avec un autre PC de ta maison (KoboldCpp ou llama-server), tout reste chez toi.</p>
-      <label>Adresse du service (compatible OpenAI)</label>
-      <input id="engRemoteUrl" placeholder="Ex : https://api.featherless.ai/v1 · https://openrouter.ai/api/v1 · http://192.168.1.20:5001/v1" data-notr>
-      <label>Modèle</label>
-      <input id="engRemoteModel" placeholder="Nom exact du modèle chez ce service (vide pour un PC de la maison)" data-notr>
-      <label>Clé du service <span class="hint" id="engRemoteKeyInfo"></span></label>
-      <div class="hrow"><input id="engRemoteKey" type="password" autocomplete="off" placeholder="Colle ta clé ici" style="flex:1"><button id="engRemoteKeySave" class="small">💾 Enregistrer la clé</button></div>
-      <p class="hint">La clé est chiffrée avec ton compte Windows et n'est jamais affichée ni envoyée ailleurs qu'au service. Choisis un modèle non censuré (« abliterated », « uncensored », ou un modèle d'aventure). Le garde-fou « pas de contenu sexuel avec un personnage de moins de 18 ans » reste actif.</p>
-      <div class="hrow"><button id="engRemoteTest" class="primary">🔌 Se connecter</button></div>
-    </div>
     <div id="engExtern">
     <div class="path empty" id="engExe">Pas encore installé</div>
     <div class="hrow"><select id="engVariant">
@@ -5022,15 +5010,8 @@ function fillEngine(c){
   const opt = $("engEngine").querySelector('option[value="integre"]'); if(opt) opt.hidden = opt.disabled = !c.bundled;
   $("engEngine").value = c.engine;
   setPath("engExe", llamaEng ? c.llamaServer : c.exePath, llamaEng ? "llama.cpp pas encore installé — clique sur « Télécharger le moteur »" : "KoboldCpp pas encore choisi");
-  const remote = c.engine === "distant";
-  $("engExtern").hidden = integre || remote;
-  $("engRemote").hidden = !remote;
-  if(document.activeElement !== $("engRemoteUrl")) $("engRemoteUrl").value = c.remoteUrl || "";
-  if(document.activeElement !== $("engRemoteModel")) $("engRemoteModel").value = c.remoteModel || "";
-  $("engRemoteKeyInfo").textContent = c.remoteKeySet ? "(enregistrée ✓)" : "(aucune)";
-  $("engEngineHint").textContent = remote
-    ? "Le Conteur écrit sur un autre ordinateur : bien plus rapide, mais tes textes y sont envoyés. Les images et la voix restent sur ce PC. Tu peux revenir au moteur intégré à tout moment."
-    : integre
+  $("engExtern").hidden = integre;
+  $("engEngineHint").textContent = integre
     ? "Le moteur fait partie d'ElectroTale : aucun programme à télécharger ni à lancer. Choisis un modèle et clique sur Démarrer. Texte, images et voix tournent directement dans l'app, sur ta carte graphique (Vulkan : Intel, AMD, NVIDIA) ou ton processeur."
     : llamaEng ? "Pour utilisateurs avancés : un llama-server séparé que tu télécharges ou que tu as déjà."
     : "Ancien moteur, gardé pour la compatibilité (images et voix KoboldCpp).";
@@ -5190,7 +5171,7 @@ async function initEngine(){
   onEngineStatus(st);
   E.detectGpu().then(g => { $("engGpuName").textContent = g.name ? "(détectée : " + g.name + ")" : ""; });
   initLauncher();
-  const needSetup = engCfg.engine === "distant" ? !engCfg.remoteUrl : engCfg.engine === "integre" ? !engCfg.modelPath : (!(engCfg.engine === "koboldcpp" ? engCfg.exePath : engCfg.llamaServer) || !engCfg.modelPath);
+  const needSetup = engCfg.engine === "integre" ? !engCfg.modelPath : (!(engCfg.engine === "koboldcpp" ? engCfg.exePath : engCfg.llamaServer) || !engCfg.modelPath);
   if(needSetup || engCfg.launcherAtStart !== false) openLauncher();
   bootAfterInit();
   if(needSetup){
@@ -5205,18 +5186,7 @@ async function initEngine(){
   $("engRestart").onclick = () => { bootDismissed = false; E.restart(); };
   $("engPickModel").onclick = async () => { const c = await E.pickModel(); if(c){ fillEngine(c); askRestart(); } };
   $("engPickExe").onclick = async () => { const c = await E.pickExe(); if(c) fillEngine(c); };
-  $("engEngine").onchange = async e => { fillEngine(await E.setConfig({engine:e.target.value})); if(e.target.value !== "distant" || engCfg.remoteUrl) askRestart(); };
-  $("engRemoteUrl").onchange = async e => {
-    const v = e.target.value.trim(), c = await E.setConfig({remoteUrl:v});
-    if(v && c.remoteUrl !== v) alert("Adresse refusée : il faut une adresse https:// (http:// seulement pour un PC de ta maison).");
-    fillEngine(c);
-  };
-  $("engRemoteModel").onchange = e => patch({remoteModel:e.target.value});
-  $("engRemoteKeySave").onclick = async () => { await E.setRemoteKey($("engRemoteKey").value); $("engRemoteKey").value = ""; fillEngine(await E.getConfig()); };
-  $("engRemoteTest").onclick = async () => {
-    if($("engRemoteKey").value.trim()) await E.setRemoteKey($("engRemoteKey").value), $("engRemoteKey").value = "";
-    bootDismissed = false; await E.restart(); fillEngine(await E.getConfig());
-  };
+  $("engEngine").onchange = async e => { fillEngine(await E.setConfig({engine:e.target.value})); askRestart(); };
   $("engDownload").onclick = async () => {
     $("engDownload").disabled = true;
     const v = $("engVariant").value, llamaEng = $("engEngine").value !== "koboldcpp";

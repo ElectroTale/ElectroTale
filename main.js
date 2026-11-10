@@ -1,6 +1,6 @@
 // ElectroTale — application de bureau
 // Fenêtre Electron + moteurs (texte, images, voix) lancés en arrière-plan, invisibles.
-const { app, BrowserWindow, ipcMain, dialog, shell, utilityProcess, session, safeStorage } = require("electron");
+const { app, BrowserWindow, ipcMain, dialog, shell, utilityProcess, session } = require("electron");
 const { spawn, execFile } = require("child_process");
 const path = require("path");
 const fs = require("fs");
@@ -9,7 +9,6 @@ const https = require("https");
 const crypto = require("crypto");
 const os = require("os");
 const contenu = require("./contenu");
-const distant = require("./distant");
 
 // clé secrète tirée au hasard à chaque lancement : les moteurs intégrés ne répondent qu'à qui la connaît (l'app elle-même)
 const ENGINE_KEY = crypto.randomBytes(32).toString("hex");
@@ -37,9 +36,7 @@ const DEFAULT_CFG = {
   sdServer: "", sdPort: 5002, kokoroExe: "", kokoroDir: "", voicePort: 5003, integreMigrated: false,
   installed: {}, launcherAtStart: true,
   sdGpu: "auto",   // dessin des images : "auto" (comme le texte), "gpu" (carte graphique) ou "cpu" (processeur)
-  sdFlash: false, sdQuant: "", sdForceGpu: false,   // accélérations du dessin, choisies par le test de vitesse
-  // moteur distant (option) : service compatible OpenAI ; la clé est chiffrée par Windows et ne va jamais à la page
-  remoteUrl: "", remoteModel: "", remoteKeyEnc: ""
+  sdFlash: false, sdQuant: "", sdForceGpu: false   // accélérations du dessin, choisies par le test de vitesse
 };
 
 /* ---------- moteur intégré : tout tourne dans ElectroTale (processus internes, pas de programme externe) ---------- */
@@ -79,43 +76,7 @@ function loadCfg() {
   if (c.engine === "integre" && !hasBundled()) c.engine = c.llamaServer ? "llamacpp" : c.exePath ? "koboldcpp" : "llamacpp";
   return c;
 }
-const engineName = c => c.engine === "koboldcpp" ? "KoboldCpp" : c.engine === "integre" ? "moteur intégré" : c.engine === "distant" ? "moteur distant" : "llama.cpp";
-// clé du moteur distant : chiffrée avec le compte Windows (safeStorage) quand c'est possible
-function remoteKeyGet(c) {
-  const v = c.remoteKeyEnc || "";
-  if (!v) return "";
-  try {
-    if (v.startsWith("enc:")) return safeStorage.decryptString(Buffer.from(v.slice(4), "base64"));
-    if (v.startsWith("b64:")) return Buffer.from(v.slice(4), "base64").toString("utf8");
-  } catch (e) { log("moteur distant : clé illisible, entre-la à nouveau"); }
-  return "";
-}
-function remoteKeySet(k) {
-  k = String(k || "").trim().slice(0, 500);
-  const c = loadCfg();
-  if (!k) c.remoteKeyEnc = "";
-  else if (safeStorage.isEncryptionAvailable()) c.remoteKeyEnc = "enc:" + safeStorage.encryptString(k).toString("base64");
-  else c.remoteKeyEnc = "b64:" + Buffer.from(k, "utf8").toString("base64");
-  saveCfg(c);
-  return !!k;
-}
-async function startDistant(c) {
-  logTail = [];
-  const chk = distant.checkUrl(c.remoteUrl);
-  if (!c.remoteUrl || !chk.ok) { setStatus("error", "Moteur distant : " + (c.remoteUrl ? chk.error : "indique l'adresse du service dans Moteur.")); return { ok: false }; }
-  setStatus("starting", "Connexion au moteur distant…");
-  let p;
-  try { p = distant.start({ port: +c.port, key: ENGINE_KEY, url: c.remoteUrl, apiKey: remoteKeyGet(c), model: c.remoteModel, ctx: +c.ctx || 8192, log }); }
-  catch (e) { setStatus("error", "Moteur distant : " + e.message); return { ok: false }; }
-  proc = p;
-  log("moteur distant : " + p.base + (c.remoteModel ? " · modèle " + c.remoteModel : ""));
-  p.once("exit", () => { if (proc === p) { proc = null; if (status !== "stopped") setStatus("stopped", "Moteur arrêté."); } });
-  const r = await p.check();
-  if (proc !== p) return { ok: false };
-  if (!r.ok) { log("moteur distant : " + r.error); p.kill(); setStatus("error", "Moteur distant : " + r.error); return { ok: false }; }
-  setStatus("ready", "Distant/" + (c.remoteModel || new URL(p.base).hostname));
-  return { ok: true };
-}
+const engineName = c => c.engine === "koboldcpp" ? "KoboldCpp" : c.engine === "integre" ? "moteur intégré" : "llama.cpp";
 function saveCfg(c) {
   fs.mkdirSync(userDir(), { recursive: true });
   fs.writeFileSync(cfgFile(), JSON.stringify(c, null, 2));
@@ -202,7 +163,6 @@ async function startEngine() {
   const c = loadCfg();
   if (proc) return { ok: true };
   if (c.engine === "integre") return startIntegre(c);
-  if (c.engine === "distant") return startDistant(c);
   const llama = c.engine !== "koboldcpp";
   const exe = llama ? c.llamaServer : c.exePath;
   if (!exe || !fs.existsSync(exe)) {
@@ -1194,16 +1154,13 @@ ipcMain.handle("tts:speak", async (e, text, sid, lang) => {
   try { return { ok: true, audio: await kokoroSpeak(String(text).slice(0, 3000), Math.max(0, Math.min(53, parseInt(sid) || 30)), String(lang || "fr")) }; }
   catch (err) { return { ok: false, error: err.message }; }
 });
-ipcMain.handle("engine:getConfig", () => { const c = { ...loadCfg(), bundled: hasBundled() }; c.remoteKeySet = !!c.remoteKeyEnc; delete c.remoteKeyEnc; return c; });
-ipcMain.handle("engine:setRemoteKey", (e, k) => remoteKeySet(k));
+ipcMain.handle("engine:getConfig", () => ({ ...loadCfg(), bundled: hasBundled() }));
 // les chemins de programmes ne se changent que par une boîte « Choisir un fichier » ou un téléchargement, jamais depuis la page
-const PROTECTED_CFG = ["exePath", "llamaServer", "sdServer", "kokoroExe", "kokoroDir", "modelsDir", "integreMigrated", "installed", "modsOff", "remoteKeyEnc"];
+const PROTECTED_CFG = ["exePath", "llamaServer", "sdServer", "kokoroExe", "kokoroDir", "modelsDir", "integreMigrated", "installed", "modsOff"];
 ipcMain.handle("engine:setConfig", (e, patch) => {
   const p = { ...(patch && typeof patch === "object" ? patch : {}) };
   PROTECTED_CFG.forEach(k => delete p[k]);
-  if ("engine" in p && !["integre", "llamacpp", "koboldcpp", "distant"].includes(p.engine)) delete p.engine;
-  if ("remoteUrl" in p && (typeof p.remoteUrl !== "string" || (p.remoteUrl.trim() && !distant.checkUrl(p.remoteUrl).ok))) delete p.remoteUrl;
-  if ("remoteModel" in p) { if (typeof p.remoteModel === "string") p.remoteModel = p.remoteModel.trim().slice(0, 200); else delete p.remoteModel; }
+  if ("engine" in p && !["integre", "llamacpp", "koboldcpp"].includes(p.engine)) delete p.engine;
   if ("sdGpu" in p && !["auto", "gpu", "cpu"].includes(p.sdGpu)) delete p.sdGpu;
   if ("sdQuant" in p && !["", "q8_0"].includes(p.sdQuant)) delete p.sdQuant;
   ["port", "sdPort", "voicePort"].forEach(k => { if (k in p && !(Number.isInteger(+p[k]) && +p[k] >= 1024 && +p[k] <= 65535)) delete p[k]; });
@@ -1312,7 +1269,7 @@ function migrateFromOldName() {
 /* ---------- sécurité : la clé des moteurs est ajoutée aux requêtes de la fenêtre, et seulement vers nos moteurs ---------- */
 function enginePorts() {
   const c = loadCfg(), s = new Set([+c.sdPort, +c.voicePort || 5003]);
-  if (c.engine === "integre" || c.engine === "distant") s.add(+c.port);
+  if (c.engine === "integre") s.add(+c.port);
   return s;
 }
 function secureSession() {
@@ -1337,8 +1294,7 @@ app.whenReady().then(() => {
   if (process.env.KA_TEST) setTimeout(() => require(process.env.KA_TEST)(win, app, { forkWorker }), 1500);
   const c = loadCfg();
   detectGpu();   // cherchée tout de suite, pendant que la fenêtre s'ouvre
-  if (c.autoStart && c.engine === "distant" && c.remoteUrl) startTextThenSd();
-  else if (c.autoStart && c.modelPath && (c.engine === "integre" || (c.engine === "koboldcpp" ? c.exePath : c.llamaServer))) {
+  if (c.autoStart && c.modelPath && (c.engine === "integre" || (c.engine === "koboldcpp" ? c.exePath : c.llamaServer))) {
     // le dessinateur attend que le Conteur soit chargé : les deux à la fois se disputaient le disque et la mémoire
     startTextThenSd();
     setTimeout(startSdAfterText, 5 * 60 * 1000);

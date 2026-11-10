@@ -6,7 +6,6 @@ contextBridge.exposeInMainWorld("engine", {
   getConfig: () => ipcRenderer.invoke("engine:getConfig"),
   setUiLang: code => ipcRenderer.send("ui:setLang", code),
   setConfig: patch => ipcRenderer.invoke("engine:setConfig", patch),
-  setRemoteKey: k => ipcRenderer.invoke("engine:setRemoteKey", k),
   status: () => ipcRenderer.invoke("engine:status"),
   start: () => ipcRenderer.invoke("engine:start"),
   stop: () => ipcRenderer.invoke("engine:stop"),
